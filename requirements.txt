@@ -1,0 +1,24 @@
+# VisManager runtime + build dependencies
+#
+# Pillow    - image decoding for TGA/PNG/JPEG/BMP/GIF/WebP/TIFF/ICO/DDS
+# pypdf     - PDF preview via embedded-image extraction (PURE PYTHON,
+#             survives PyInstaller packaging with no extra configuration)
+# pyinstaller - builds the executable
+#
+# tkinter is part of the Python standard library. On Windows and macOS it
+# ships with the official python.org installer. On Debian/Ubuntu it is a
+# separate package:  sudo apt install python3-tk
+
+Pillow>=10.0.0
+pypdf>=4.0.0
+pyinstaller>=6.0.0
+
+# ── Optional: full PDF renderer ───────────────────────────────────────────
+# pypdfium2 rasterises any PDF, including vector and text-only documents.
+# pypdf alone can only pull out embedded images, which covers every PDF
+# VisManager produces plus virtually all scanned documents.
+#
+# It ships a native binary that PyInstaller does not detect on its own —
+# vismanager.spec collects it explicitly. Uncomment to enable:
+#
+# pypdfium2>=4.0.0
