@@ -23,7 +23,7 @@ import threading
 from collections import OrderedDict
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 
 # ─── Branding assets (embedded) ───────────────────────────────────────────────
 # Base64-embedded so PyInstaller has no data files to lose. A packaged build
@@ -321,18 +321,19 @@ def icon(name):
     one goes stale the moment its root is destroyed. The cached entry is
     probed before reuse and rebuilt if the old interpreter has gone away.
     """
-    cached = _ICON_CACHE.get(name)
+    name_key = (_interp_key(), name)
+    cached = _ICON_CACHE.get(name_key)
     if cached is not None:
         try:
             cached.width()          # cheap liveness check
             return cached
         except Exception:
-            _ICON_CACHE.pop(name, None)
+            _ICON_CACHE.pop(name_key, None)
     try:
         img = tk.PhotoImage(data=base64.b64decode(ICON_B64[name]))
     except Exception:
         img = None
-    _ICON_CACHE[name] = img
+    _ICON_CACHE[name_key] = img
     return img
 
 
@@ -376,6 +377,8 @@ GLYPHS = {
     "rot_cw":   "\u27f3",   # ⟳ clockwise
     "flip_h":   "\u21c4",   # ⇄ horizontal
     "flip_v":   "\u21c5",   # ⇅ vertical
+    "fullscreen": "\u26f6", # ⛶ fullscreen
+    "help":     "?",
     "flag_on":  "\u2691",   # ⚑ flagged
     "flag_off": "\u2690",   # ⚐ not flagged
     "note":     "\u270e",   # ✎ pencil
@@ -390,6 +393,7 @@ ASCII_GLYPHS = {
     "dot_o": "o", "clear": "x",
     "flag_on": "[F]", "flag_off": "[ ]", "note": "N", "export": "v",
     "rot_ccw": "<|", "rot_cw": "|>", "flip_h": "<>", "flip_v": "^v",
+    "fullscreen": "[ ]", "help": "?",
 }
 
 
@@ -489,6 +493,8 @@ ACTIONS = [
     ("flip_h",      "Flip horizontal",       "<Key-h>",             "flip_horizontal"),
     ("flip_v",      "Flip vertical",         "<Key-v>",             "flip_vertical"),
     ("rot_reset",   "Reset orientation",     "<Key-r>",             "reset_transform"),
+    ("fullscreen",  "Fullscreen image",      "<Key-F11>",           "toggle_fullscreen"),
+    ("help",        "Help",                  "<Key-F1>",            "open_help"),
     ("zoom_in",     "Zoom in",               "<Key-equal>",         "zoom_in"),
     ("zoom_out",    "Zoom out",              "<Key-minus>",         "zoom_out"),
     ("zoom_fit",    "Zoom to fit",           "<Key-0>",             "zoom_fit"),
@@ -1005,6 +1011,66 @@ class ImageCache:
             return len(self._d), self._bytes / 1024 / 1024, self.max_bytes / 1024 / 1024
 
 
+# ─── Rounded button backgrounds ───────────────────────────────────────────────
+# Tk's canvas has no anti-aliasing, so ovals and polygons come out with visibly
+# stair-stepped edges. Drawing the shape in PIL at 4x and downsampling gives
+# clean corners. Results are cached: a handful of distinct size/colour
+# combinations covers the whole UI.
+_RRECT_CACHE = {}
+_RRECT_SS = 4          # supersampling factor
+
+
+def _interp_key():
+    """
+    Identify the Tk interpreter that owns newly created images.
+
+    A PhotoImage is registered inside one interpreter; handing it to another
+    fails with 'image "pyimageN" doesn\'t exist'. Probing the cached object
+    isn't reliable because the old interpreter may still be alive, so the
+    cache is keyed by interpreter identity instead.
+    """
+    return id(getattr(tk, "_default_root", None))
+
+
+def _hex_to_rgb(c):
+    c = c.lstrip("#")
+    if len(c) == 3:
+        c = "".join(ch * 2 for ch in c)
+    return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def rounded_rect_image(w, h, radius, fill, bg):
+    """A PhotoImage of an anti-aliased rounded rectangle on `bg`."""
+    if w <= 1 or h <= 1:
+        return None
+    key = (_interp_key(), w, h, radius, fill, bg)
+    cached = _RRECT_CACHE.get(key)
+    if cached is not None:
+        try:
+            cached.width()              # still owned by a live interpreter?
+            return cached
+        except Exception:
+            _RRECT_CACHE.pop(key, None)
+
+    try:
+        ss = _RRECT_SS
+        # Composite onto the parent colour rather than using alpha: Tk blends
+        # transparent PhotoImages against black on some platforms, which would
+        # leave dark halos around every corner.
+        im = Image.new("RGB", (w * ss, h * ss), _hex_to_rgb(bg))
+        ImageDraw.Draw(im).rounded_rectangle(
+            [0, 0, w * ss - 1, h * ss - 1],
+            radius=max(0, radius) * ss, fill=_hex_to_rgb(fill))
+        photo = ImageTk.PhotoImage(im.resize((w, h), Image.LANCZOS))
+    except Exception:
+        return None
+
+    if len(_RRECT_CACHE) > 400:           # keep the cache bounded
+        _RRECT_CACHE.clear()
+    _RRECT_CACHE[key] = photo
+    return photo
+
+
 # ─── FlatButton ───────────────────────────────────────────────────────────────
 class FlatButton(tk.Canvas):
     """
@@ -1051,7 +1117,13 @@ class FlatButton(tk.Canvas):
         self.bind("<Button-1>",        self._on_click)
         self.bind("<Enter>",           self._on_enter)
         self.bind("<Leave>",           self._on_leave)
-        self.bind("<Configure>",       lambda e: self._draw())
+        self.bind("<Configure>",       self._on_configure)
+
+    def _on_configure(self, event):
+        # Only repaint when the allocated size really changed
+        if (event.width, event.height) != getattr(self, "_last_size", None):
+            self._last_size = (event.width, event.height)
+            self._draw()
 
     @staticmethod
     def _parent_bg(parent):
@@ -1086,27 +1158,23 @@ class FlatButton(tk.Canvas):
         self._draw()
 
     # ── Painting ─────────────────────────────────────────────────────────────
-    def _round_rect(self, x0, y0, x1, y1, r, fill):
-        """Rounded rectangle from two arcs-free primitives: ovals plus bars."""
-        r = max(0, min(r, (x1 - x0) // 2, (y1 - y0) // 2))
-        if r == 0:
-            self.create_rectangle(x0, y0, x1, y1, fill=fill, width=0)
-            return
-        d = r * 2
-        self.create_oval(x0, y0, x0 + d, y0 + d, fill=fill, width=0)
-        self.create_oval(x1 - d, y0, x1, y0 + d, fill=fill, width=0)
-        self.create_oval(x0, y1 - d, x0 + d, y1, fill=fill, width=0)
-        self.create_oval(x1 - d, y1 - d, x1, y1, fill=fill, width=0)
-        self.create_rectangle(x0 + r, y0, x1 - r, y1, fill=fill, width=0)
-        self.create_rectangle(x0, y0 + r, x1, y1 - r, fill=fill, width=0)
-
     def _draw(self):
         self.delete("all")
-        w = int(self["width"])
-        h = int(self["height"])
+        # Use the size actually allocated by the geometry manager. A button
+        # packed with fill=X is stretched well beyond its requested width, and
+        # reading the configured width instead would draw the shape far too
+        # narrow — leaving a stubby pill floating in a wider clickable area.
+        w = self.winfo_width()
+        h = self.winfo_height()
+        if w <= 1 or h <= 1:                 # not mapped yet
+            w, h = int(self["width"]), int(self["height"])
+
         col = (self._hover_bg if (self._hovering and self._state == tk.NORMAL)
                else self._base_bg)
-        self._round_rect(0, 0, w - 1, h - 1, self._radius, col)
+        self._bg_photo = rounded_rect_image(w, h, self._radius, col,
+                                            self._parent_bg(self.master))
+        if self._bg_photo is not None:
+            self.create_image(0, 0, anchor="nw", image=self._bg_photo)
 
         fg = "#7a7a96" if self._state == tk.DISABLED else self._fg
         iw = 0
@@ -1205,11 +1273,13 @@ class FlatScrollbar(tk.Canvas):
     to this widget's `set`.
     """
 
-    def __init__(self, parent, command=None, width=13,
+    def __init__(self, parent, command=None, width=13, orient="vertical",
                  trough=BG_DARK, thumb=THUMB, thumb_hover=THUMB_HOVER,
                  thumb_drag=THUMB_DRAG, min_thumb=28, **kw):
-        super().__init__(parent, width=width, bg=trough,
-                         highlightthickness=0, bd=0, takefocus=0, **kw)
+        self._horizontal = orient.startswith("h")
+        size_kw = {"height": width} if self._horizontal else {"width": width}
+        super().__init__(parent, bg=trough, highlightthickness=0, bd=0,
+                         takefocus=0, **size_kw, **kw)
         self.command = command
         self._first, self._last = 0.0, 1.0
         self._trough = trough
@@ -1247,9 +1317,12 @@ class FlatScrollbar(tk.Canvas):
         return self._first, self._last
 
     # ── Geometry ─────────────────────────────────────────────────────────────
+    def _extent(self):
+        return self.winfo_width() if self._horizontal else self.winfo_height()
+
     def _thumb_bounds(self):
         """Pixel span of the thumb, or None when nothing is scrollable."""
-        h = self.winfo_height()
+        h = self._extent()
         if h <= 1:
             return None
         frac = self._last - self._first
@@ -1272,15 +1345,19 @@ class FlatScrollbar(tk.Canvas):
         if b is None:
             return
         y0, y1 = b
-        w = self.winfo_width()
+        thick = self.winfo_height() if self._horizontal else self.winfo_width()
         pad = 3
-        r = (w - pad * 2) / 2                  # radius for the rounded caps
+        r = (thick - pad * 2) / 2
         col = (self._c_drag if self._drag_dy is not None
                else self._c_hover if self._hover else self._c_idle)
-        # Rounded rectangle: a body plus two end caps
-        self.create_oval(pad, y0, w - pad, y0 + 2 * r, fill=col, width=0)
-        self.create_oval(pad, y1 - 2 * r, w - pad, y1, fill=col, width=0)
-        self.create_rectangle(pad, y0 + r, w - pad, y1 - r, fill=col, width=0)
+        if self._horizontal:
+            self.create_oval(y0, pad, y0 + 2 * r, thick - pad, fill=col, width=0)
+            self.create_oval(y1 - 2 * r, pad, y1, thick - pad, fill=col, width=0)
+            self.create_rectangle(y0 + r, pad, y1 - r, thick - pad, fill=col, width=0)
+        else:
+            self.create_oval(pad, y0, thick - pad, y0 + 2 * r, fill=col, width=0)
+            self.create_oval(pad, y1 - 2 * r, thick - pad, y1, fill=col, width=0)
+            self.create_rectangle(pad, y0 + r, thick - pad, y1 - r, fill=col, width=0)
 
     # ── Interaction ──────────────────────────────────────────────────────────
     def _on_press(self, event):
@@ -1288,24 +1365,26 @@ class FlatScrollbar(tk.Canvas):
         if b is None:
             return
         y0, y1 = b
-        if y0 <= event.y <= y1:
-            self._drag_dy = event.y - y0       # grabbed the thumb
+        pos = event.x if self._horizontal else event.y
+        event = type("E", (), {"x": event.x, "y": event.y, "_p": pos})()
+        if y0 <= pos <= y1:
+            self._drag_dy = event._p - y0      # grabbed the thumb
         else:
             # Clicked the trough: jump so the thumb centres on the click
             self._drag_dy = (y1 - y0) // 2
-            self._move_to(event.y)
+            self._move_to(event._p)
         self._redraw()
 
     def _on_drag(self, event):
         if self._drag_dy is not None:
-            self._move_to(event.y)
+            self._move_to(event.x if self._horizontal else event.y)
 
     def _on_release(self, _event):
         self._drag_dy = None
         self._redraw()
 
     def _move_to(self, y):
-        h = self.winfo_height()
+        h = self._extent()
         b = self._thumb_bounds()
         if b is None or not self.command:
             return
@@ -1386,6 +1465,25 @@ class ScrollFrame(tk.Frame):
     def wanted_height(self):
         self.body.update_idletasks()
         return self.body.winfo_reqheight()
+
+    def fit_content(self, max_height=None, max_width=None):
+        """
+        Size the scroll canvas to its contents.
+
+        A Canvas reports no requested size from a create_window child, so a
+        dialog built around one sizes itself as if the body were empty — which
+        is why the shortcut columns were clipped on the right. Pushing the
+        body's requested size onto the canvas lets the dialog measure itself
+        correctly.
+        """
+        self.body.update_idletasks()
+        w = self.body.winfo_reqwidth()
+        h = self.body.winfo_reqheight()
+        if max_width:
+            w = min(w, max_width)
+        if max_height:
+            h = min(h, max_height)
+        self.canvas.configure(width=w, height=h)
 
 
 def fit_to_screen(win, margin=110):
@@ -1472,7 +1570,7 @@ class VisManager:
         self._build_toolbar()
 
         # Paned window: sidebar | viewer
-        pane = tk.PanedWindow(self.root, orient=tk.HORIZONTAL,
+        self._pane = pane = tk.PanedWindow(self.root, orient=tk.HORIZONTAL,
                               sashwidth=5, sashrelief=tk.FLAT,
                               bg=BORDER, handlepad=0, handlesize=0)
         pane.pack(fill=tk.BOTH, expand=True, padx=0, pady=(0, 0))
@@ -1484,7 +1582,7 @@ class VisManager:
 
     # ── Toolbar ──────────────────────────────────────────────────────────────
     def _build_toolbar(self):
-        tb = tk.Frame(self.root, bg=BG_MID, pady=8, padx=12)
+        self._toolbar = tb = tk.Frame(self.root, bg=BG_MID, pady=8, padx=12)
         tb.pack(side=tk.TOP, fill=tk.X)
 
         # ── Brand: logo mark + wordmark, with a text fallback ──
@@ -1511,9 +1609,11 @@ class VisManager:
         self.open_btn.pack(side=tk.LEFT, padx=4)
         self._shortcut_btns["open_dir"] = (self.open_btn, f"{GLYPHS['open']}  Open Directory")
 
+        # Open folder name — this is the primary "where am I" cue, so it gets
+        # real weight instead of the muted 10pt it had before.
         self.dir_lbl = tk.Label(tb, text="No directory selected", bg=BG_MID,
-                                fg=TEXT_MUTED, font=("Helvetica", 10))
-        self.dir_lbl.pack(side=tk.LEFT, padx=12)
+                                fg=TEXT_MUTED, font=("Helvetica", 13, "bold"))
+        self.dir_lbl.pack(side=tk.LEFT, padx=14)
 
         # Right: process, shortcuts, stats
         self.process_btn = self._btn(tb, f"{GLYPHS['process']}  Process Images", self.process_images,
@@ -1529,26 +1629,51 @@ class VisManager:
         self._shortcut_btns["export_notes"] = (self.export_btn,
                                                "Export Notes")
 
+        self.help_btn = self._btn(tb, "?", self.open_help,
+                                  bg=BTN_INVERT, hover="#606878", font_size=11)
+        self.help_btn.pack(side=tk.RIGHT, padx=4)
+
         self.keys_btn = self._btn(tb, "Shortcuts", self.open_shortcuts_dialog,
                                   image=icon("keyboard"),
                                   bg=BTN_KEYS, hover=BTN_KEYS_HOV)
         self.keys_btn.pack(side=tk.RIGHT, padx=4)
 
-        self.stats_lbl = tk.Label(tb, text="", bg=BG_MID, fg=TEXT_MUTED,
-                                  font=("Helvetica", 10))
-        self.stats_lbl.pack(side=tk.RIGHT, padx=18)
+        # Counts split into separate labels so each can carry its own colour;
+        # a single label can only be one colour, which is why the old readout
+        # was a uniform grey blur.
+        stats = tk.Frame(tb, bg=BG_MID)
+        stats.pack(side=tk.RIGHT, padx=16)
+        self._stats_frame = stats
+
+        self.keep_stat = tk.Label(stats, text="", bg=BG_MID, fg=BTN_KEEP_HOV,
+                                  font=("Helvetica", 13, "bold"))
+        self.keep_stat.pack(side=tk.LEFT)
+        self.del_stat = tk.Label(stats, text="", bg=BG_MID, fg=BTN_DEL_HOV,
+                                 font=("Helvetica", 13, "bold"))
+        self.del_stat.pack(side=tk.LEFT, padx=(12, 0))
+        self.flag_stat = tk.Label(stats, text="", bg=BG_MID, fg=FLAG_TEXT,
+                                  font=("Helvetica", 13, "bold"))
+        self.flag_stat.pack(side=tk.LEFT, padx=(12, 0))
+        self.total_stat = tk.Label(stats, text="", bg=BG_MID, fg=TEXT_MUTED,
+                                   font=("Helvetica", 11))
+        self.total_stat.pack(side=tk.LEFT, padx=(12, 0))
+
+        # Kept for compatibility with code that used one combined label
+        self.stats_lbl = self.total_stat
 
     # ── Sidebar ──────────────────────────────────────────────────────────────
     def _build_sidebar(self, pane):
-        sidebar = tk.Frame(pane, bg=BG_SIDEBAR, width=210)
+        self._sidebar = sidebar = tk.Frame(pane, bg=BG_SIDEBAR, width=210)
         pane.add(sidebar, minsize=170, stretch="never")
 
         tk.Label(sidebar, text="FOLDERS", bg=BG_SIDEBAR, fg=TEXT_MUTED,
                  font=("Helvetica", 9, "bold")).pack(pady=(12, 4), padx=10, anchor=tk.W)
 
-        # Listbox
-        lf = tk.Frame(sidebar, bg=BG_SIDEBAR)
-        lf.pack(fill=tk.BOTH, expand=True, padx=6)
+        # Listbox, with its own frame so a horizontal bar can sit beneath it
+        lf_outer = tk.Frame(sidebar, bg=BG_SIDEBAR)
+        lf_outer.pack(fill=tk.BOTH, expand=True, padx=6)
+        lf = tk.Frame(lf_outer, bg=BG_SIDEBAR)
+        lf.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
         sb = FlatScrollbar(lf, trough=BG_DARK)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
@@ -1563,6 +1688,22 @@ class VisManager:
         )
         self.folder_lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb.config(command=self.folder_lb.yview)
+
+        # Deeply-nested folder names run well past the sidebar width, and a
+        # truncated name like "1a_dicationSinglet_HOM..." is unusable when
+        # several differ only in their suffix. A horizontal bar lets the name
+        # be read in full without widening the whole panel.
+        hsb = FlatScrollbar(lf_outer, orient="horizontal", width=11,
+                            trough=BG_SIDEBAR)
+        hsb.pack(side=tk.BOTTOM, fill=tk.X, pady=(2, 0))
+        hsb.config(command=self.folder_lb.xview)
+        self.folder_lb.config(xscrollcommand=hsb.set)
+        self.folder_hsb = hsb
+
+        # Shift+wheel scrolls sideways, matching every other list widget
+        self.folder_lb.bind(
+            "<Shift-MouseWheel>",
+            lambda e: self.folder_lb.xview_scroll(-1 if e.delta > 0 else 1, "units"))
 
         # Wheel over the list itself, not just over the scrollbar
         self.folder_lb.bind(
@@ -1612,7 +1753,7 @@ class VisManager:
         pane.add(viewer, minsize=620, stretch="always")
 
         # ── Large position header ──
-        header = tk.Frame(viewer, bg=BG_DARK, pady=8)
+        self._header = header = tk.Frame(viewer, bg=BG_DARK, pady=8)
         header.pack(side=tk.TOP, fill=tk.X)
 
         self.big_pos_lbl = tk.Label(
@@ -1642,7 +1783,7 @@ class VisManager:
         self.prog_canvas.bind("<Configure>", lambda e: self._draw_progress())
 
         # ── Zoom strip ──
-        zbar = tk.Frame(viewer, bg=BG_DARK)
+        self._zbar = zbar = tk.Frame(viewer, bg=BG_DARK)
         zbar.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(2, 4))
 
         zright = tk.Frame(zbar, bg=BG_DARK)
@@ -1655,6 +1796,12 @@ class VisManager:
         self.zoom_lbl.pack(side=tk.LEFT, padx=2)
         self._btn(zright, "", self.zoom_in, image=icon("expand"),
                   bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
+
+        self.fs_btn = self._btn(zright, "", self.toggle_fullscreen,
+                                bg=BTN_KEYS, hover=BTN_KEYS_HOV, font_size=9)
+        self.fs_btn.pack(side=tk.LEFT, padx=(8, 2))
+        self._shortcut_btns["fullscreen"] = (
+            self.fs_btn, f"{GLYPHS['fullscreen']}  Fullscreen")
         self.zoom_fit_btn = self._btn(zright, "Fit", self.zoom_fit,
                                       bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
         self.zoom_fit_btn.pack(side=tk.LEFT, padx=(8, 2))
@@ -1690,10 +1837,13 @@ class VisManager:
         self._btn(rbar, "Reset", self.reset_transform, bg=BTN_INVERT,
                   hover="#606878", font_size=8).pack(side=tk.LEFT, padx=1)
 
-        tk.Label(zbar, text="scroll to zoom  \u2022  drag to pan  \u2022  "
-                            "double-click toggles fit / 1:1",
-                 bg=BG_DARK, fg=TEXT_MUTED,
-                 font=("Helvetica", 8)).pack(side=tk.LEFT)
+        # Hint text is the first thing sacrificed when the bar runs out of
+        # room — the controls either side of it must never be pushed off.
+        self.zoom_hint = tk.Label(
+            zbar, text="scroll to zoom  \u2022  drag to pan  \u2022  "
+                       "double-click toggles fit / 1:1",
+            bg=BG_DARK, fg=TEXT_MUTED, font=("Helvetica", 8))
+        self.zoom_hint.pack(side=tk.LEFT)
 
         # Canvas
         self.canvas = tk.Canvas(viewer, bg=BG_DARK, highlightthickness=0, cursor="crosshair")
@@ -1711,7 +1861,7 @@ class VisManager:
         self.canvas.bind("<Double-Button-1>", self._on_double_click)
 
         # Navigation + control bar
-        nav = tk.Frame(viewer, bg=BG_MID, pady=10)
+        self._nav = nav = tk.Frame(viewer, bg=BG_MID, pady=10)
         nav.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Left nav
@@ -1766,8 +1916,15 @@ class VisManager:
         # Flag / note button sits with Keep and Delete
         self.note_btn = self._btn(btn_row, "", self.edit_note,
                                   image=icon("edit-document"),
-                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=11)
+                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=9)
         self.note_btn.pack(side=tk.LEFT, padx=6)
+
+        # Flag on its own button: flagging without writing a note is the
+        # common case, and it previously had no visible control at all.
+        self.flag_btn = self._btn(btn_row, "", self.toggle_flag,
+                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=9)
+        self.flag_btn.pack(side=tk.LEFT, padx=6)
+        self._shortcut_btns["flag"] = (self.flag_btn, "")
 
         # Inline preview of the current note
         self.note_lbl = tk.Label(centre, text="", bg=BG_MID, fg=FLAG_TEXT,
@@ -1857,6 +2014,11 @@ class VisManager:
         if hasattr(self, "export_btn"):
             self.export_btn.configure(
                 text="Notes" if compact else "Export Notes")
+        if hasattr(self, "zoom_hint"):
+            if compact:
+                self.zoom_hint.pack_forget()
+            elif not self.zoom_hint.winfo_ismapped():
+                self.zoom_hint.pack(side=tk.LEFT)
         if hasattr(self, "stats_lbl"):
             self._update_stats()
         self._refresh_shortcut_labels()
@@ -1873,7 +2035,7 @@ class VisManager:
             "process":  f"{GLYPHS['process']}  Process",
         }
         for action_id, (btn, base_text) in self._shortcut_btns.items():
-            if action_id in ("nav_mode", "preload", "note", "export_notes"):
+            if action_id in ("nav_mode", "preload", "note", "flag", "export_notes"):
                 continue          # these manage their own variable labels
             if compact and action_id in compact_base:
                 # Drop the key hint too — it's still shown in the Shortcuts dialog
@@ -1896,6 +2058,89 @@ class VisManager:
                 f"{display_binding(self.bindings['toggle'])} = Toggle  •  "
                 "Click ⌨ Shortcuts to customise"
             ))
+
+    # ─── Fullscreen ───────────────────────────────────────────────────────────
+    def toggle_fullscreen(self):
+        if getattr(self, "_fullscreen", False):
+            self.exit_fullscreen()
+        else:
+            self.enter_fullscreen()
+
+    def enter_fullscreen(self):
+        """Hide every panel so the image gets the whole screen."""
+        if getattr(self, "_fullscreen", False) or self._src_img is None:
+            return
+        self._fullscreen = True
+
+        # Remember the sash position so the sidebar returns where it was
+        try:
+            self._saved_sash = self._pane.sash_coord(0)[0]
+        except Exception:
+            self._saved_sash = None
+
+        for w in (self._toolbar, self._header, self._zbar,
+                  self._nav, self.status_lbl):
+            try:
+                w.pack_forget()
+            except Exception:
+                pass
+        try:
+            self._pane.forget(self._sidebar)
+        except Exception:
+            pass
+
+        try:
+            self.root.attributes("-fullscreen", True)
+        except tk.TclError:
+            pass
+
+        self._fs_hint = tk.Label(
+            self.root,
+            text=f"{os.path.basename(self._cur_file() or '')}    "
+                 f"{self.cur_image_idx + 1}/{len(self._cur_files())}    "
+                 f"Esc or {display_binding(self.bindings.get('fullscreen'))} to exit",
+            bg=BG_MID, fg=TEXT_MUTED, font=("Helvetica", 10), pady=4)
+        self._fs_hint.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.root.bind("<Escape>", lambda e: self.exit_fullscreen())
+        self.root.after(60, lambda: self._render_view(recenter=True))
+
+    def exit_fullscreen(self):
+        if not getattr(self, "_fullscreen", False):
+            return
+        self._fullscreen = False
+        try:
+            self.root.attributes("-fullscreen", False)
+        except tk.TclError:
+            pass
+        if getattr(self, "_fs_hint", None) is not None:
+            self._fs_hint.destroy()
+            self._fs_hint = None
+        self.root.unbind("<Escape>")
+
+        # Rebuild the layout in its original stacking order
+        self._toolbar.pack(side=tk.TOP, fill=tk.X, before=self._pane)
+        try:
+            self._pane.add(self._sidebar, minsize=170, stretch="never",
+                           before=self._pane.panes()[0])
+        except Exception:
+            self._pane.add(self._sidebar, minsize=170, stretch="never")
+        self._header.pack(side=tk.TOP, fill=tk.X, before=self.canvas)
+        self._zbar.pack(side=tk.TOP, fill=tk.X, before=self.canvas)
+        self._nav.pack(side=tk.BOTTOM, fill=tk.X)
+        self.status_lbl.pack(side=tk.BOTTOM, fill=tk.X)
+
+        if self._saved_sash:
+            try:
+                self._pane.sash_place(0, self._saved_sash, 0)
+            except Exception:
+                pass
+        self.root.after(60, lambda: self._render_view(recenter=True))
+        self._refresh_shortcut_labels()
+
+    # ─── Help ─────────────────────────────────────────────────────────────────
+    def open_help(self):
+        HelpDialog(self)
 
     # ─── Shutdown ─────────────────────────────────────────────────────────────
     def on_close(self):
@@ -1943,6 +2188,8 @@ class VisManager:
             self._cache.clear()
         except Exception:
             pass
+        _RRECT_CACHE.clear()
+        _ICON_CACHE.clear()
         try:
             self.root._icon_ref = None
         except Exception:
@@ -2061,6 +2308,15 @@ class VisManager:
             label = "Note"
             self.note_btn.configure(
                 text=f"{label}  [{display_binding(key)}]" if key else label,
+                bg=FLAG_ON if flagged else BTN_NAV,
+                hover=FLAG_ON_HOV if flagged else BTN_NAV_HOV)
+
+        if hasattr(self, "flag_btn"):
+            fkey = self.bindings.get("flag")
+            flabel = (f"{GLYPHS['flag_on']}  Flagged" if flagged
+                      else f"{GLYPHS['flag_off']}  Flag")
+            self.flag_btn.configure(
+                text=f"{flabel}  [{display_binding(fkey)}]" if fkey else flabel,
                 bg=FLAG_ON if flagged else BTN_NAV,
                 hover=FLAG_ON_HOV if flagged else BTN_NAV_HOV)
 
@@ -3077,14 +3333,24 @@ class VisManager:
     def _update_stats(self):
         total  = len(self.image_states)
         keep_n = sum(1 for v in self.image_states.values() if v)
-        if getattr(self, "_compact", False):
-            self.stats_lbl.config(
-                text=(f"{keep_n}\u2713 / {total - keep_n}\u2717"
-                      + (f"  {GLYPHS['flag_on']}{len(self.notes)}" if self.notes else "")))
-        else:
-            self.stats_lbl.config(
-                text=(f"Keep: {keep_n}   Delete: {total - keep_n}   Total: {total}"
-                  + (f"   {GLYPHS['flag_on']} {len(self.notes)}" if self.notes else "")))
+        del_n  = total - keep_n
+        compact = getattr(self, "_compact", False)
+
+        if not hasattr(self, "keep_stat"):
+            return
+        if total == 0:
+            for w in (self.keep_stat, self.del_stat,
+                      self.flag_stat, self.total_stat):
+                w.config(text="")
+            return
+
+        self.keep_stat.config(text=f"{GLYPHS['keep']} {keep_n}"
+                              if compact else f"Keep {keep_n}")
+        self.del_stat.config(text=f"{GLYPHS['delete']} {del_n}"
+                             if compact else f"Delete {del_n}")
+        self.flag_stat.config(
+            text=(f"{GLYPHS['flag_on']} {len(self.notes)}") if self.notes else "")
+        self.total_stat.config(text=f"of {total}")
 
     # ─── Processing ───────────────────────────────────────────────────────────
     @staticmethod
@@ -3489,6 +3755,11 @@ class ProcessOptionsDialog(tk.Toplevel):
 
         self._build(len(keep_files), len(delete_files))
 
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.scroller.fit_content(max_height=int(sh * 0.55),
+                                  max_width=sw - 120)
+        self.update_idletasks()
+        self.minsize(min(self.winfo_reqwidth(), sw - 60), 400)
         fit_to_screen(self)
 
         self.grab_set()
@@ -3688,6 +3959,11 @@ class ShortcutsDialog(tk.Toplevel):
         self.minsize(640, 380)
 
         self._build()
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.scroller.fit_content(max_height=int(sh * 0.55),
+                                  max_width=sw - 120)
+        self.update_idletasks()
+        self.minsize(min(self.winfo_reqwidth(), sw - 60), 360)
         fit_to_screen(self)
 
         self.grab_set()
@@ -3725,15 +4001,20 @@ class ShortcutsDialog(tk.Toplevel):
 
         # Two columns: 26 actions in a single stack is taller than most
         # screens. Splitting halves the height and keeps the list scannable.
-        per_col = (len(ACTIONS) + 1) // 2
-        cols = [tk.Frame(body, bg=BG_DARK), tk.Frame(body, bg=BG_DARK)]
+        # Two columns unless the screen is too narrow to show both, in which
+        # case one column plus scrolling beats clipping the right-hand side.
+        two_col = self.winfo_screenwidth() >= 900
+        per_col = ((len(ACTIONS) + 1) // 2) if two_col else len(ACTIONS)
+        cols = [tk.Frame(body, bg=BG_DARK)]
         cols[0].grid(row=0, column=0, sticky="nw")
-        cols[1].grid(row=0, column=1, sticky="nw", padx=(24, 0))
         body.grid_columnconfigure(0, weight=1)
-        body.grid_columnconfigure(1, weight=1)
+        if two_col:
+            cols.append(tk.Frame(body, bg=BG_DARK))
+            cols[1].grid(row=0, column=1, sticky="nw", padx=(24, 0))
+            body.grid_columnconfigure(1, weight=1)
 
         for i, (action_id, label, _default, _h) in enumerate(ACTIONS):
-            parent = cols[0 if i < per_col else 1]
+            parent = cols[0] if i < per_col else cols[1]
             row = tk.Frame(parent, bg=BG_DARK)
             row.pack(fill=tk.X, pady=3)
             self.row_frames[action_id] = row
@@ -4014,6 +4295,195 @@ class ExitDialog(tk.Toplevel):
 
     def _pick(self, what):
         self.result = what
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.app.resume_shortcuts()
+        self.destroy()
+
+
+# ─── Help ─────────────────────────────────────────────────────────────────────
+class HelpDialog(tk.Toplevel):
+    """Reference window: supported formats, workflow, and current shortcuts."""
+
+    def __init__(self, app):
+        super().__init__(app.root)
+        self.app = app
+        self._closed = False
+
+        app.suspend_shortcuts()
+        self.title(f"{APP_NAME} Help")
+        self.configure(bg=BG_DARK)
+        self.transient(app.root)
+        self.resizable(True, True)
+        self.minsize(620, 420)
+
+        self._build()
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.scroller.fit_content(max_height=int(sh * 0.62), max_width=sw - 120)
+        self.update_idletasks()
+        self.minsize(min(self.winfo_reqwidth(), sw - 60), 420)
+        fit_to_screen(self)
+
+        self.grab_set()
+        self.focus_force()
+        self.bind("<Escape>", lambda e: self._close())
+        self.protocol("WM_DELETE_WINDOW", self._close)
+
+    # ── Small layout helpers ─────────────────────────────────────────────────
+    def _heading(self, parent, text):
+        tk.Label(parent, text=text.upper(), bg=BG_DARK, fg=ACCENT_BLUE,
+                 font=("Helvetica", 10, "bold")).pack(anchor=tk.W, pady=(14, 4))
+
+    def _para(self, parent, text, colour=None):
+        tk.Label(parent, text=text, bg=BG_DARK, fg=colour or TEXT_PRIMARY,
+                 font=("Helvetica", 9), justify=tk.LEFT, anchor=tk.W,
+                 wraplength=560).pack(anchor=tk.W, pady=(0, 4))
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=BG_MID, padx=20, pady=12)
+        hdr.pack(fill=tk.X)
+        brand = tk.Frame(hdr, bg=BG_MID)
+        brand.pack(anchor=tk.W)
+        logo = _photo_from_b64(LOGO_SMALL_PNG_B64)
+        if logo is not None:
+            lab = tk.Label(brand, image=logo, bg=BG_MID)
+            lab.image = logo
+            lab.pack(side=tk.LEFT, padx=(0, 9))
+        tk.Label(brand, text=f"{APP_NAME} Help", bg=BG_MID, fg=TEXT_PRIMARY,
+                 font=("Helvetica", 15, "bold")).pack(side=tk.LEFT)
+        tk.Label(hdr, text="Review images and PDFs, mark them, convert to PDF, "
+                           "and clean up.",
+                 bg=BG_MID, fg=TEXT_MUTED, font=("Helvetica", 9)).pack(anchor=tk.W)
+
+        footer = tk.Frame(self, bg=BG_MID, padx=20, pady=10)
+        footer.pack(side=tk.BOTTOM, fill=tk.X)
+        FlatButton(footer, text="Keyboard Shortcuts",
+                   command=self._open_shortcuts, image=icon("keyboard"),
+                   bg=BTN_KEYS, hover=BTN_KEYS_HOV,
+                   font_size=10).pack(side=tk.LEFT)
+        FlatButton(footer, text="Close", command=self._close,
+                   bg=BTN_NAV, hover=BTN_NAV_HOV,
+                   font_size=10, width=8).pack(side=tk.RIGHT)
+
+        self.scroller = ScrollFrame(self, bg=BG_DARK)
+        self.scroller.pack(fill=tk.BOTH, expand=True, padx=(20, 6), pady=12)
+        b = self.scroller.body
+
+        # ── Supported file types ──
+        self._heading(b, "Supported file types")
+        grid = tk.Frame(b, bg=BG_DARK)
+        grid.pack(anchor=tk.W, fill=tk.X)
+        for i, (tid, label, exts) in enumerate(FILE_TYPES):
+            r, c = divmod(i, 2)
+            cell = tk.Frame(grid, bg=BG_DARK)
+            cell.grid(row=r, column=c, sticky=tk.W, padx=(0, 30), pady=2)
+            found = self.app.type_counts.get(tid, 0)
+            tk.Label(cell, text=f"{label}", bg=BG_DARK,
+                     fg=TEXT_PRIMARY if found else TEXT_MUTED,
+                     font=("Helvetica", 10, "bold"), width=6, anchor=tk.W
+                     ).pack(side=tk.LEFT)
+            tk.Label(cell, text="  ".join(sorted(exts)), bg=BG_DARK,
+                     fg=TEXT_MUTED, font=("Helvetica", 9)).pack(side=tk.LEFT)
+            if found:
+                tk.Label(cell, text=f"  ({found} here)", bg=BG_DARK,
+                         fg=BTN_KEEP_HOV, font=("Helvetica", 9)).pack(side=tk.LEFT)
+
+        backend = _resolve_pdf_backend()
+        if backend == "pypdf":
+            self._para(b, "\nPDF preview is in embedded-image mode: page 1's "
+                          "image is extracted. Exact for image-based and scanned "
+                          "PDFs. Install pypdfium2 to rasterise vector/text PDFs.",
+                       FLAG_TEXT)
+        elif backend == "none":
+            self._para(b, "\nNo PDF preview backend is installed. PDFs show a "
+                          "placeholder but can still be marked. "
+                          "Install pypdf or pypdfium2.", BTN_DEL_HOV)
+        else:
+            self._para(b, f"\nPDF preview via {backend} — full page rendering.",
+                       TEXT_MUTED)
+
+        # ── Workflow ──
+        self._heading(b, "How it works")
+        for n, (title, body) in enumerate([
+            ("Open a directory",
+             "Every subfolder is scanned for supported files. Use FILE TYPES "
+             "in the sidebar to show or hide a format; hiding one keeps its marks."),
+            ("Mark each file",
+             "Keep or Delete. Nothing is created or deleted until you run "
+             "Process, so marking is always safe."),
+            ("Flag and annotate (optional)",
+             "Flag a file for follow-up, or write a note on it. Export Notes "
+             "writes a plain-text report grouped by folder."),
+            ("Process",
+             "Choose the PDF layout — one per file, one per folder, or a "
+             "single combined PDF — and control deletion separately for each "
+             "file type."),
+        ], start=1):
+            row = tk.Frame(b, bg=BG_DARK)
+            row.pack(anchor=tk.W, fill=tk.X, pady=3)
+            tk.Label(row, text=f"{n}", bg=ACCENT_BLUE, fg="white",
+                     font=("Helvetica", 9, "bold"), width=3
+                     ).pack(side=tk.LEFT, anchor=tk.N)
+            txt = tk.Frame(row, bg=BG_DARK)
+            txt.pack(side=tk.LEFT, padx=(10, 0), fill=tk.X, expand=True)
+            tk.Label(txt, text=title, bg=BG_DARK, fg=TEXT_PRIMARY,
+                     font=("Helvetica", 10, "bold")).pack(anchor=tk.W)
+            tk.Label(txt, text=body, bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 9), justify=tk.LEFT,
+                     wraplength=520).pack(anchor=tk.W)
+
+        # ── Viewing ──
+        self._heading(b, "Viewing")
+        self._para(b,
+                   "Scroll to zoom, drag to pan, double-click toggles fit and "
+                   "1:1. Rotate and flip are per file and are applied to the "
+                   "exported PDF. Fullscreen hides every panel; press Esc to "
+                   "return.")
+        self._para(b,
+                   "Navigation mode switches between running continuously "
+                   "through all folders and wrapping inside the current one. "
+                   "Preload mode decodes a whole folder up front — worth "
+                   "enabling for folders of PDFs.")
+
+        # ── Where things are saved ──
+        self._heading(b, "Where your work is saved")
+        self._para(b,
+                   f"Notes and orientations live in {VisManager.NOTES_FILENAME} "
+                   "inside the folder you opened, so they travel with the "
+                   "files. Keep/Delete marks last for the session only — run "
+                   "Process to act on them.")
+        self._para(b,
+                   f"Shortcuts and preferences are stored in "
+                   f"{os.path.basename(CONFIG_PATH)} in your home folder.")
+
+        # ── Current shortcuts ──
+        self._heading(b, "Current shortcuts")
+        kg = tk.Frame(b, bg=BG_DARK)
+        kg.pack(anchor=tk.W, fill=tk.X)
+        per = (len(ACTIONS) + 1) // 2
+        for i, (aid, label, _d, _h) in enumerate(ACTIONS):
+            r, c = (i, 0) if i < per else (i - per, 1)
+            cell = tk.Frame(kg, bg=BG_DARK)
+            cell.grid(row=r, column=c, sticky=tk.W, padx=(0, 26), pady=1)
+            tk.Label(cell, text=label, bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 9), width=19, anchor=tk.W
+                     ).pack(side=tk.LEFT)
+            tk.Label(cell, text=display_binding(self.app.bindings.get(aid)),
+                     bg=BG_MID, fg=TEXT_PRIMARY, font=("Helvetica", 9, "bold"),
+                     padx=7, pady=1).pack(side=tk.LEFT)
+
+        self.scroller.bind_wheel_recursive()
+
+    def _open_shortcuts(self):
+        self._close()
+        self.app.open_shortcuts_dialog()
+
+    def _close(self):
+        if self._closed:
+            return
+        self._closed = True
         try:
             self.grab_release()
         except tk.TclError:
