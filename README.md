@@ -77,6 +77,7 @@ only at build time.
 | Invert folder | `Ctrl+I` | Process | `Ctrl+P` |
 | Add / edit note | `N` | Toggle flag | `F` |
 | Export notes | `Ctrl+E` | Reset orientation | `R` |
+| Fullscreen | `F11` | Help | `F1` |
 | Rotate left / right | `[` / `]` | Flip horiz / vert | `H` / `V` |
 
 **Every shortcut is rebindable** — click ⌨ Shortcuts, click a key, press the
