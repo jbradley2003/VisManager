@@ -205,6 +205,18 @@ WORDMARK_PNG_B64 = (
 )
 
 ICON_B64 = {
+    "folder": (
+        "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAACNUlEQVR42r1Uv2uTURS978dHYtoOzcc3BByiFsSl"
+        "kyUF4xRw6NQlQ5FCh1qoS5BMEjLaRTA45SPUQCxE6F9QoRlE0iQOnTo0II1QHUugpSRf3o/jUCNtoVGCeODC43Lv"
+        "e+e8e94j+lfI5XKPtNYBrqFer/uxWIxzzolz/sd9mFKq1263P9ZqtfdCCGmM0eFwOLK2trZVqVSeraysbIZCITLG"
+        "XGkEcDUHABsbG0+un7C9vf2i1+t1R7FhjP1eSyKiiYmJSSklSSmJiEhrTeVyeSudTr+pVquZ/f39JuecWWsBANZa"
+        "u7e31240GmeMMQJwwahQKCwyxigUCpEQghzHIcdxqFgsLuEGWGtNIpGYFEKQEIL4L4oMAAVBQMYYUkqRUorW19c/"
+        "RCIR5roud12Xe54nXNfliURikjHGZ2dnbxtjCMCFtCAIAiklzc3NTV3Wzjln/X7fWGsxzAOgWCw2pbXuz8zM3J2f"
+        "n/9+cHBwTgDg+/7TnZ2dVxgTrVarzACg2+12pqen7+Tz+ceHh4ffhhc7yjdSSq61tplM5mUymXxOxhgFAJ1O5/M4"
+        "hj4+Pv7SbDbfkVKqZ601xWJxaTi5oRVuimFNKpWKAsDq6up9Gj6PhYUF73LRqAiHw8QYo1KptDwYDM49z+MEAEdH"
+        "R5/GkXVycvJ1d3f3NRGRPD09/eE4zq1CobAohJAA7Khmzrmw1pp4PP4gGo3e833/LWOMKJvNPgyC4GycsZdKpWUh"
+        "xF/9Dv8fPwH5SKOgo5Hv9wAAAABJRU5ErkJggg=="
+    ),
     "undo": (
         "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAACw0lEQVR42pVUPUgbYRh+7i9KUmuiYDpoyVQTQh0l"
         "gorcEVqIh7qISDdREK9TWyx0KCjWrUOX1smhRIcoIqQJShEDZjl06KIQvRCaQUsHDTHNmTP3dmgvVatEn+X74f2e"
@@ -1715,7 +1727,8 @@ class VisManager:
                      font=("Helvetica", 15, "bold")).pack(side=tk.LEFT)
 
         # Open
-        self.open_btn = self._btn(tb, f"{GLYPHS['open']}  Open Directory", self.browse_directory,
+        self.open_btn = self._btn(tb, "Open Directory", self.browse_directory,
+                                  image=icon("folder"),
                                   bg=BTN_OPEN, hover=BTN_OPEN_HOV)
         tb.add(self.open_btn, "left")
         self._shortcut_btns["open_dir"] = (self.open_btn, f"{GLYPHS['open']}  Open Directory")
@@ -1862,13 +1875,14 @@ class VisManager:
     def _build_viewer(self, pane):
         viewer = tk.Frame(pane, bg=BG_DARK)
         pane.add(viewer, minsize=620, stretch="always")
+        self._viewer = viewer
 
         # ── Large position header ──
         self._header = header = tk.Frame(viewer, bg=BG_DARK, pady=8)
         header.pack(side=tk.TOP, fill=tk.X)
 
         self.big_pos_lbl = tk.Label(
-            header, text="—", bg=BG_DARK, fg=TEXT_PRIMARY,
+            header, text="\u2014", bg=BG_DARK, fg=TEXT_PRIMARY,
             font=("Helvetica", 30, "bold"),
         )
         self.big_pos_lbl.pack()
@@ -1893,35 +1907,12 @@ class VisManager:
         self.prog_canvas.pack(fill=tk.X, padx=40, pady=(8, 0))
         self.prog_canvas.bind("<Configure>", lambda e: self._draw_progress())
 
-        # ── Zoom strip ──
+        # ── Status strip: things that are not image manipulation ──
         self._zbar = zouter = tk.Frame(viewer, bg=BG_DARK)
         zouter.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(2, 4))
         zbar = FlowBar(zouter, bg=BG_DARK, hgap=6)
         zbar.pack(fill=tk.X)
         self._zb_flow = zbar
-
-        zright = tk.Frame(zbar, bg=BG_DARK)
-
-        self._btn(zright, "", self.zoom_out, image=icon("collapse"),
-                  bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
-        self.zoom_lbl = tk.Label(zright, text="Fit", bg=BG_DARK, fg=TEXT_PRIMARY,
-                                 font=("Helvetica", 10, "bold"), width=7)
-        self.zoom_lbl.pack(side=tk.LEFT, padx=2)
-        self._btn(zright, "", self.zoom_in, image=icon("expand"),
-                  bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
-
-        self.fs_btn = self._btn(zright, "", self.toggle_fullscreen,
-                                bg=BTN_KEYS, hover=BTN_KEYS_HOV, font_size=9)
-        self.fs_btn.pack(side=tk.LEFT, padx=(8, 2))
-        zbar.add(zright, "right")
-        self._shortcut_btns["fullscreen"] = (
-            self.fs_btn, f"{GLYPHS['fullscreen']}  Fullscreen")
-        self.zoom_fit_btn = self._btn(zright, "Fit", self.zoom_fit,
-                                      bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        self.zoom_fit_btn.pack(side=tk.LEFT, padx=(8, 2))
-        self.zoom_100_btn = self._btn(zright, "1:1", self.zoom_actual,
-                                      bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        self.zoom_100_btn.pack(side=tk.LEFT, padx=2)
 
         self.preload_btn = self._btn(zbar, "", self.toggle_preload,
                                      bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=8)
@@ -1932,36 +1923,27 @@ class VisManager:
                                   font=("Helvetica", 8))
         zbar.add(self.cache_lbl, "left")
 
-        # ── Orientation controls ──
-        rbar = tk.Frame(zbar, bg=BG_DARK)
-        zbar.add(rbar, "left")
-        for ic, cmd in [
-            ("undo",            self.rotate_ccw),
-            ("redo",            self.rotate_cw),
-            ("flip-horizontal", self.flip_horizontal),
-            ("flip-vertical",   self.flip_vertical),
-        ]:
-            self._btn(rbar, "", cmd, image=icon(ic), bg=BTN_NAV,
-                      hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
-
-        self.rot_lbl = tk.Label(rbar, text="\u2014", bg=BG_DARK, fg=TEXT_MUTED,
-                                font=("Helvetica", 9, "bold"), width=7)
-        self.rot_lbl.pack(side=tk.LEFT, padx=3)
-
-        self._btn(rbar, "Reset", self.reset_transform, bg=BTN_INVERT,
-                  hover="#606878", font_size=8).pack(side=tk.LEFT, padx=1)
-
-        # Hint text is the first thing sacrificed when the bar runs out of
-        # room — the controls either side of it must never be pushed off.
         self.zoom_hint = tk.Label(
             zbar, text="scroll to zoom  \u2022  drag to pan  \u2022  "
                        "double-click toggles fit / 1:1",
             bg=BG_DARK, fg=TEXT_MUTED, font=("Helvetica", 8))
         zbar.add(self.zoom_hint, "left")
 
+        # The bottom action bar must be packed BEFORE the toolbar and canvas.
+        # Pack fills in order, so a canvas with expand=True claims everything
+        # left over — packing the bar afterwards squeezed it into a strip down
+        # the right-hand side instead of across the bottom.
+        self._build_action_bar(viewer)
+
+        # ── Left vertical toolbar: everything that alters the view ──
+        # Grouping rotate/flip/zoom into one column keeps them together and
+        # off the horizontal bars, which is what kept running out of width.
+        self._build_view_toolbar(viewer)
+
         # Canvas
-        self.canvas = tk.Canvas(viewer, bg=BG_DARK, highlightthickness=0, cursor="crosshair")
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        self.canvas = tk.Canvas(viewer, bg=BG_DARK, highlightthickness=0,
+                                cursor="crosshair")
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.canvas.bind("<Configure>", self._on_canvas_resize)
 
         # Wheel zoom. Windows/macOS send <MouseWheel>; X11 sends Button-4/5.
@@ -1974,12 +1956,169 @@ class VisManager:
         self.canvas.bind("<ButtonRelease-1>", self._on_pan_end)
         self.canvas.bind("<Double-Button-1>", self._on_double_click)
 
-        # Navigation + control bar
-        #
-        # Restructured as stacked rows: the old three-column layout (left nav /
-        # centre / right nav) had the outer groups overlapping the centre once
-        # the window narrowed. Now every control lives in one FlowBar that
-        # wraps, and the text lines sit above and below it.
+    # ── Left view toolbar ────────────────────────────────────────────────────
+    def _build_view_toolbar(self, viewer):
+        """
+        Vertical strip holding every control that alters the view.
+
+        Laid out in paired rows rather than a single column: stacking Fit and
+        1:1 made the strip taller than short windows, so the bottom controls
+        were cut off with no way to reach them.
+        """
+        # The strip lives inside a scroller. Shedding captions buys ~70px,
+        # which is enough for a slightly short window but not for a genuinely
+        # small one — without scrolling the zoom controls simply fall off the
+        # bottom with no way to reach them.
+        outer = tk.Frame(viewer, bg=BG_SIDEBAR)
+        outer.pack(side=tk.LEFT, fill=tk.Y)
+        self._view_tb = outer
+
+        scroller = ScrollFrame(outer, bg=BG_SIDEBAR)
+        scroller.pack(fill=tk.BOTH, expand=True)
+        self._vtb_scroll = scroller
+
+        tb = tk.Frame(scroller.body, bg=BG_SIDEBAR, padx=4, pady=4)
+        tb.pack(fill=tk.BOTH, expand=True)
+        self._vtb_body = tb
+
+        # Section headings and dividers are the first things dropped when the
+        # window is too short to show the whole strip — losing a caption is a
+        # far better outcome than losing the zoom buttons off the bottom.
+        self._vtb_optional = []
+
+        def head(text):
+            lbl = tk.Label(tb, text=text, bg=BG_SIDEBAR, fg=TEXT_MUTED,
+                           font=("Helvetica", 7, "bold"))
+            lbl.pack(pady=(4, 2))
+            self._vtb_optional.append((lbl, {"pady": (4, 2)}))
+
+        def pair(items):
+            row = tk.Frame(tb, bg=BG_SIDEBAR)
+            row.pack()
+            out = []
+            for kind, val, cmd in items:
+                if kind == "icon":
+                    b = self._btn(row, "", cmd, image=icon(val),
+                                  bg=BTN_NAV, hover=BTN_NAV_HOV)
+                else:
+                    b = self._btn(row, val, cmd, bg=BTN_NAV,
+                                  hover=BTN_NAV_HOV, font_size=8, width=3)
+                b.pack(side=tk.LEFT, padx=1)
+                out.append(b)
+            return out
+
+        head("ROTATE")
+        pair([("icon", "undo", self.rotate_ccw),
+              ("icon", "redo", self.rotate_cw)])
+
+        head("FLIP")
+        pair([("icon", "flip-horizontal", self.flip_horizontal),
+              ("icon", "flip-vertical", self.flip_vertical)])
+
+        self.rot_lbl = tk.Label(tb, text="\u2014", bg=BG_SIDEBAR, fg=TEXT_MUTED,
+                                font=("Helvetica", 8, "bold"))
+        self.rot_lbl.pack(pady=(4, 1))
+        self._btn(tb, "Reset", self.reset_transform, bg=BTN_INVERT,
+                  hover="#606878", font_size=8).pack(fill=tk.X, pady=(0, 2))
+
+        sep1 = tk.Frame(tb, bg=BORDER, height=1)
+        sep1.pack(fill=tk.X, pady=4)
+        self._vtb_optional.append((sep1, {"fill": tk.X, "pady": 4}))
+
+        head("ZOOM")
+        pair([("icon", "collapse", self.zoom_out),
+              ("icon", "expand", self.zoom_in)])
+
+        self.zoom_lbl = tk.Label(tb, text="Fit", bg=BG_SIDEBAR, fg=TEXT_PRIMARY,
+                                 font=("Helvetica", 9, "bold"))
+        self.zoom_lbl.pack(pady=(4, 2))
+
+        self.zoom_fit_btn, self.zoom_100_btn = pair(
+            [("text", "Fit", self.zoom_fit), ("text", "1:1", self.zoom_actual)])
+
+        sep2 = tk.Frame(tb, bg=BORDER, height=1)
+        sep2.pack(fill=tk.X, pady=4)
+        self._vtb_optional.append((sep2, {"fill": tk.X, "pady": 4}))
+        self.fs_btn = self._btn(tb, "", self.toggle_fullscreen,
+                                image=icon("expand"),
+                                bg=BTN_KEYS, hover=BTN_KEYS_HOV)
+        self.fs_btn.pack(pady=(2, 0))
+        self._shortcut_btns["fullscreen"] = (self.fs_btn, "")
+
+        self._vtb_compact = False
+        scroller.bind_wheel_recursive()
+        self.root.after(80, self._fit_view_toolbar)
+        outer.bind("<Configure>", self._on_view_tb_configure)
+
+    def _fit_view_toolbar(self):
+        """Match the scroll canvas to the strip so its width is respected."""
+        try:
+            body = self._vtb_body
+            body.update_idletasks()
+            self._vtb_scroll.canvas.configure(width=body.winfo_reqwidth())
+        except Exception:
+            pass
+
+    def _on_view_tb_configure(self, event):
+        """Drop captions when the strip no longer fits, restore them when it does."""
+        body = getattr(self, "_vtb_body", None)
+        if body is None:
+            return
+        need = body.winfo_reqheight()
+        if self._vtb_compact:
+            extra = sum(w.winfo_reqheight() + 8 for w, _k in self._vtb_optional)
+            if event.height > need + extra + 6:
+                self._set_vtb_compact(False)
+        elif need > event.height:
+            self._set_vtb_compact(True)
+
+    def _set_vtb_compact(self, compact):
+        """
+        Hide or restore the optional widgets, preserving their position.
+
+        pack() appends to the end of the parent, so naively re-packing after
+        pack_forget() would shuffle the strip into a different order. Each
+        widget's following sibling is recorded on the way out and used as a
+        `before` anchor on the way back, restoring in reverse so the anchor
+        always exists by the time it is needed.
+        """
+        if compact == self._vtb_compact:
+            return
+        self._vtb_compact = compact
+
+        if compact:
+            kids = self._vtb_body.winfo_children()
+            for w, kw in self._vtb_optional:
+                try:
+                    i = kids.index(w)
+                    kw["_before"] = kids[i + 1] if i + 1 < len(kids) else None
+                except ValueError:
+                    kw["_before"] = None
+            for w, _kw in self._vtb_optional:
+                w.pack_forget()
+        else:
+            for w, kw in reversed(self._vtb_optional):
+                before = kw.pop("_before", None)
+                opts = {k: v for k, v in kw.items() if not k.startswith("_")}
+                try:
+                    if before is not None and before.winfo_exists():
+                        w.pack(before=before, **opts)
+                    else:
+                        w.pack(**opts)
+                except tk.TclError:
+                    w.pack(**opts)
+
+    # ── Bottom action bar ────────────────────────────────────────────────────
+    def _build_action_bar(self, viewer):
+        """
+        Two compact rows, per the sketched layout:
+
+            [<<]   KEEP   DELETE   [>>]
+            [ <]   NOTE   FLAG     [ >]
+
+        Stacking the paired controls halves the width the bar needs, so it
+        keeps its shape on narrow windows instead of wrapping or colliding.
+        """
         self._nav = nav = tk.Frame(viewer, bg=BG_MID, pady=8)
         nav.pack(side=tk.BOTTOM, fill=tk.X)
 
@@ -1991,53 +2130,52 @@ class VisManager:
                                 font=("Helvetica", 9))
         self.pos_lbl.pack()
 
-        actions = FlowBar(nav, bg=BG_MID, hgap=7, pady=2)
-        actions.pack(fill=tk.X, padx=14, pady=(7, 2))
-        self._actions_flow = actions
+        grid = tk.Frame(nav, bg=BG_MID)
+        grid.pack(pady=(8, 2))
+        self._actions_grid = grid
 
-        b_pf = self._btn(actions, f"{GLYPHS['prev2']} Folder", self.prev_folder,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        actions.add(b_pf, "left")
-        self._shortcut_btns["prev_folder"] = (b_pf, f"{GLYPHS['prev2']} Folder")
+        b_pf = self._btn(grid, GLYPHS["prev2"], self.prev_folder,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
+        b_pf.grid(row=0, column=0, padx=(0, 10), pady=2, sticky="ew")
+        self._shortcut_btns["prev_folder"] = (b_pf, GLYPHS["prev2"])
 
-        b_pi = self._btn(actions, f"{GLYPHS['prev']} Prev", self.prev_image,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        actions.add(b_pi, "left")
-        self._shortcut_btns["prev_image"] = (b_pi, f"{GLYPHS['prev']} Prev")
+        b_pi = self._btn(grid, GLYPHS["prev"], self.prev_image,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
+        b_pi.grid(row=1, column=0, padx=(0, 10), pady=2, sticky="ew")
+        self._shortcut_btns["prev_image"] = (b_pi, GLYPHS["prev"])
 
-        centre = tk.Frame(actions, bg=BG_MID)
-        self.keep_btn = self._btn(centre, f"{GLYPHS['keep']}  KEEP", self.act_keep,
-                                  bg=BTN_KEEP, hover=BTN_KEEP_HOV, width=13)
-        self.keep_btn.pack(side=tk.LEFT, padx=4)
+        self.keep_btn = self._btn(grid, f"{GLYPHS['keep']}  KEEP", self.act_keep,
+                                  bg=BTN_KEEP, hover=BTN_KEEP_HOV, width=12)
+        self.keep_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
         self._shortcut_btns["keep"] = (self.keep_btn, f"{GLYPHS['keep']}  KEEP")
 
-        self.del_btn = self._btn(centre, f"{GLYPHS['delete']}  DELETE", self.act_delete,
-                                 bg=BTN_DEL, hover=BTN_DEL_HOV, width=13)
-        self.del_btn.pack(side=tk.LEFT, padx=4)
-        self._shortcut_btns["delete"] = (self.del_btn, f"{GLYPHS['delete']}  DELETE")
+        self.del_btn = self._btn(grid, f"{GLYPHS['delete']}  DELETE",
+                                 self.act_delete,
+                                 bg=BTN_DEL, hover=BTN_DEL_HOV, width=12)
+        self.del_btn.grid(row=0, column=2, padx=3, pady=2, sticky="ew")
+        self._shortcut_btns["delete"] = (self.del_btn,
+                                         f"{GLYPHS['delete']}  DELETE")
 
-        self.note_btn = self._btn(centre, "", self.edit_note,
+        self.note_btn = self._btn(grid, "Note", self.edit_note,
                                   image=icon("edit-document"),
-                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=8)
-        self.note_btn.pack(side=tk.LEFT, padx=4)
+                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
+        self.note_btn.grid(row=1, column=1, padx=3, pady=2, sticky="ew")
 
-        self.flag_btn = self._btn(centre, "", self.toggle_flag,
-                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=8)
-        self.flag_btn.pack(side=tk.LEFT, padx=4)
+        self.flag_btn = self._btn(grid, "Flag", self.toggle_flag,
+                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
+        self.flag_btn.grid(row=1, column=2, padx=3, pady=2, sticky="ew")
         self._shortcut_btns["flag"] = (self.flag_btn, "")
-        actions.add(centre, "left")
 
-        b_ni = self._btn(actions, f"Next {GLYPHS['next']}", self.next_image,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        actions.add(b_ni, "right")
-        self._shortcut_btns["next_image"] = (b_ni, f"Next {GLYPHS['next']}")
+        b_nf = self._btn(grid, GLYPHS["next2"], self.next_folder,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
+        b_nf.grid(row=0, column=3, padx=(10, 0), pady=2, sticky="ew")
+        self._shortcut_btns["next_folder"] = (b_nf, GLYPHS["next2"])
 
-        b_nf = self._btn(actions, f"Folder {GLYPHS['next2']}", self.next_folder,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        actions.add(b_nf, "right")
-        self._shortcut_btns["next_folder"] = (b_nf, f"Folder {GLYPHS['next2']}")
+        b_ni = self._btn(grid, GLYPHS["next"], self.next_image,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
+        b_ni.grid(row=1, column=3, padx=(10, 0), pady=2, sticky="ew")
+        self._shortcut_btns["next_image"] = (b_ni, GLYPHS["next"])
 
-        # Status lines below the buttons
         self.note_lbl = tk.Label(nav, text="", bg=BG_MID, fg=FLAG_TEXT,
                                  font=("Helvetica", 9))
         self.note_lbl.pack()
@@ -2231,7 +2369,7 @@ class VisManager:
             self._saved_sash = None
 
         for w in (self._toolbar, self._header, self._zbar,
-                  self._nav, self.status_lbl):
+                  self._nav, self.status_lbl, self._view_tb):
             try:
                 w.pack_forget()
             except Exception:
@@ -2357,7 +2495,8 @@ class VisManager:
             self._pane.add(self._sidebar, minsize=170, stretch="never")
         self._header.pack(side=tk.TOP, fill=tk.X, before=self.canvas)
         self._zbar.pack(side=tk.TOP, fill=tk.X, before=self.canvas)
-        self._nav.pack(side=tk.BOTTOM, fill=tk.X)
+        self._nav.pack(side=tk.BOTTOM, fill=tk.X, before=self.canvas)
+        self._view_tb.pack(side=tk.LEFT, fill=tk.Y, before=self.canvas)
         self.status_lbl.pack(side=tk.BOTTOM, fill=tk.X)
 
         if self._saved_sash:
