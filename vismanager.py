@@ -633,6 +633,7 @@ def display_binding(binding):
 
 DEFAULT_SETTINGS = {
     "nav_mode":      "continuous",   # "continuous" | "wrap"
+    "fullscreen_mode": "screen",     # "screen" (whole display) | "window"
     "preload_mode":  "lazy",         # "lazy" (one at a time) | "folder" (preload)
     "pdf_mode":      "per_image",    # "per_image" | "per_folder" | "combined"
     "delete_source": False,          # legacy global fallback
@@ -1504,6 +1505,112 @@ def fit_to_screen(win, margin=110):
     win.geometry(f"{w}x{h}+{x}+{y}")
 
 
+# ─── FlowBar ──────────────────────────────────────────────────────────────────
+class FlowBar(tk.Frame):
+    """
+    A horizontal bar whose children wrap onto extra rows when space runs out.
+
+    Tk's packer has no concept of overflow: children packed to the left and
+    right of the same frame simply draw on top of each other once the window
+    is too narrow, which is how "Reset" ended up half-hidden behind the zoom
+    controls. This measures every child and lays them out with place(),
+    stacking additional rows and growing its own height instead of colliding.
+    """
+
+    HGAP = 6
+    VGAP = 5
+
+    def __init__(self, parent, bg=BG_MID, hgap=None, vgap=None, pady=0, **kw):
+        super().__init__(parent, bg=bg, **kw)
+        self._items = []              # [(widget, side)]
+        self._hgap = self.HGAP if hgap is None else hgap
+        self._vgap = self.VGAP if vgap is None else vgap
+        self._pady = pady
+        self._last_w = -1
+        self._child_sizes = {}
+        self._reflow_job = None
+        self.bind("<Configure>", self._on_configure)
+
+    def add(self, widget, side="left"):
+        """side is a hint used only while everything fits on one row."""
+        self._items.append((widget, side))
+        # A child that changes label (compact mode, shortcut hints, live
+        # counts) changes width without the bar itself being reconfigured.
+        # Watching each child keeps the layout honest; only real size changes
+        # trigger a reflow, so place() repositioning can't loop.
+        widget.bind("<Configure>", self._on_child_configure, add="+")
+        return widget
+
+    def _on_child_configure(self, event):
+        key = id(event.widget)
+        size = (event.width, event.height)
+        if self._child_sizes.get(key) == size:
+            return
+        self._child_sizes[key] = size
+        self._schedule_reflow()
+
+    def _schedule_reflow(self):
+        if self._reflow_job is None:
+            self._reflow_job = self.after_idle(self._do_scheduled_reflow)
+
+    def _do_scheduled_reflow(self):
+        self._reflow_job = None
+        self.reflow()
+
+    def _on_configure(self, event):
+        if event.width != self._last_w:
+            self._last_w = event.width
+            self._schedule_reflow()
+
+    def reflow(self):
+        if not self._items:
+            return
+        avail = self.winfo_width()
+        if avail <= 1:
+            self.after(30, self.reflow)
+            return
+
+        widths, heights = [], []
+        for w, _s in self._items:
+            w.update_idletasks()
+            widths.append(w.winfo_reqwidth())
+            heights.append(w.winfo_reqheight())
+
+        need = sum(widths) + self._hgap * (len(widths) - 1)
+        row_h = max(heights) if heights else 0
+
+        if need <= avail:
+            # Everything fits: honour the left/right placement hint
+            x = 0
+            for i, (w, side) in enumerate(self._items):
+                if side == "left":
+                    w.place(x=x, y=self._pady + (row_h - heights[i]) // 2)
+                    x += widths[i] + self._hgap
+            x = avail
+            for i in range(len(self._items) - 1, -1, -1):
+                w, side = self._items[i]
+                if side == "right":
+                    x -= widths[i]
+                    w.place(x=x, y=self._pady + (row_h - heights[i]) // 2)
+                    x -= self._hgap
+            self.configure(height=row_h + self._pady * 2)
+            return
+
+        # Too narrow: wrap into left-aligned rows, preserving order
+        y = self._pady
+        x = 0
+        rows = 1
+        for i, (w, _side) in enumerate(self._items):
+            if x and x + widths[i] > avail:
+                x = 0
+                y += row_h + self._vgap
+                rows += 1
+            w.place(x=x, y=y + (row_h - heights[i]) // 2)
+            x += widths[i] + self._hgap
+        self.configure(height=rows * row_h + (rows - 1) * self._vgap
+                              + self._pady * 2)
+
+
 # ─── Main Application ─────────────────────────────────────────────────────────
 class VisManager:
     def __init__(self, root: tk.Tk):
@@ -1529,6 +1636,7 @@ class VisManager:
         self._resize_job     = None         # debounce id
         self._quality_job    = None         # deferred high-quality redraw
         self._pan_job        = None         # coalesced pan redraw
+        self._resize_paint_job = None       # live repaint while resizing
         self._mip            = None         # downscaled copy for fast zoom-out
         self._mip_src        = None
         self._mip_factor     = 1
@@ -1582,12 +1690,15 @@ class VisManager:
 
     # ── Toolbar ──────────────────────────────────────────────────────────────
     def _build_toolbar(self):
-        self._toolbar = tb = tk.Frame(self.root, bg=BG_MID, pady=8, padx=12)
-        tb.pack(side=tk.TOP, fill=tk.X)
+        self._toolbar = outer = tk.Frame(self.root, bg=BG_MID, pady=6, padx=12)
+        outer.pack(side=tk.TOP, fill=tk.X)
+        tb = FlowBar(outer, bg=BG_MID, hgap=8)
+        tb.pack(fill=tk.X)
+        self._tb_flow = tb
 
         # ── Brand: logo mark + wordmark, with a text fallback ──
         brand = tk.Frame(tb, bg=BG_MID)
-        brand.pack(side=tk.LEFT, padx=(0, 18))
+        tb.add(brand, "left")
 
         # Pre-rendered 32px asset — Tk's subsample() is nearest-neighbour and
         # turns fine logo detail to mush, so the resize is done ahead of time.
@@ -1606,43 +1717,43 @@ class VisManager:
         # Open
         self.open_btn = self._btn(tb, f"{GLYPHS['open']}  Open Directory", self.browse_directory,
                                   bg=BTN_OPEN, hover=BTN_OPEN_HOV)
-        self.open_btn.pack(side=tk.LEFT, padx=4)
+        tb.add(self.open_btn, "left")
         self._shortcut_btns["open_dir"] = (self.open_btn, f"{GLYPHS['open']}  Open Directory")
 
         # Open folder name — this is the primary "where am I" cue, so it gets
         # real weight instead of the muted 10pt it had before.
         self.dir_lbl = tk.Label(tb, text="No directory selected", bg=BG_MID,
                                 fg=TEXT_MUTED, font=("Helvetica", 13, "bold"))
-        self.dir_lbl.pack(side=tk.LEFT, padx=14)
+        tb.add(self.dir_lbl, "left")
 
         # Right: process, shortcuts, stats
         self.process_btn = self._btn(tb, f"{GLYPHS['process']}  Process Images", self.process_images,
                                      bg=BTN_PROCESS, hover=BTN_PROCESS_HOV,
                                      state=tk.DISABLED)
-        self.process_btn.pack(side=tk.RIGHT, padx=4)
+        tb.add(self.process_btn, "right")
         self._shortcut_btns["process"] = (self.process_btn, f"{GLYPHS['process']}  Process Images")
 
         self.export_btn = self._btn(
             tb, "Export Notes", self.export_notes, image=icon("edit-document"),
             bg="#7c3aed", hover="#8b5cf6")
-        self.export_btn.pack(side=tk.RIGHT, padx=4)
+        tb.add(self.export_btn, "right")
         self._shortcut_btns["export_notes"] = (self.export_btn,
                                                "Export Notes")
 
         self.help_btn = self._btn(tb, "?", self.open_help,
                                   bg=BTN_INVERT, hover="#606878", font_size=11)
-        self.help_btn.pack(side=tk.RIGHT, padx=4)
+        tb.add(self.help_btn, "right")
 
         self.keys_btn = self._btn(tb, "Shortcuts", self.open_shortcuts_dialog,
                                   image=icon("keyboard"),
                                   bg=BTN_KEYS, hover=BTN_KEYS_HOV)
-        self.keys_btn.pack(side=tk.RIGHT, padx=4)
+        tb.add(self.keys_btn, "right")
 
         # Counts split into separate labels so each can carry its own colour;
         # a single label can only be one colour, which is why the old readout
         # was a uniform grey blur.
         stats = tk.Frame(tb, bg=BG_MID)
-        stats.pack(side=tk.RIGHT, padx=16)
+        tb.add(stats, "right")
         self._stats_frame = stats
 
         self.keep_stat = tk.Label(stats, text="", bg=BG_MID, fg=BTN_KEEP_HOV,
@@ -1783,11 +1894,13 @@ class VisManager:
         self.prog_canvas.bind("<Configure>", lambda e: self._draw_progress())
 
         # ── Zoom strip ──
-        self._zbar = zbar = tk.Frame(viewer, bg=BG_DARK)
-        zbar.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(2, 4))
+        self._zbar = zouter = tk.Frame(viewer, bg=BG_DARK)
+        zouter.pack(side=tk.TOP, fill=tk.X, padx=12, pady=(2, 4))
+        zbar = FlowBar(zouter, bg=BG_DARK, hgap=6)
+        zbar.pack(fill=tk.X)
+        self._zb_flow = zbar
 
         zright = tk.Frame(zbar, bg=BG_DARK)
-        zright.pack(side=tk.RIGHT)
 
         self._btn(zright, "", self.zoom_out, image=icon("collapse"),
                   bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
@@ -1800,6 +1913,7 @@ class VisManager:
         self.fs_btn = self._btn(zright, "", self.toggle_fullscreen,
                                 bg=BTN_KEYS, hover=BTN_KEYS_HOV, font_size=9)
         self.fs_btn.pack(side=tk.LEFT, padx=(8, 2))
+        zbar.add(zright, "right")
         self._shortcut_btns["fullscreen"] = (
             self.fs_btn, f"{GLYPHS['fullscreen']}  Fullscreen")
         self.zoom_fit_btn = self._btn(zright, "Fit", self.zoom_fit,
@@ -1811,16 +1925,16 @@ class VisManager:
 
         self.preload_btn = self._btn(zbar, "", self.toggle_preload,
                                      bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=8)
-        self.preload_btn.pack(side=tk.LEFT, padx=(0, 10))
+        zbar.add(self.preload_btn, "left")
         self._shortcut_btns["preload"] = (self.preload_btn, "")
 
         self.cache_lbl = tk.Label(zbar, text="", bg=BG_DARK, fg=TEXT_MUTED,
                                   font=("Helvetica", 8))
-        self.cache_lbl.pack(side=tk.LEFT, padx=(0, 10))
+        zbar.add(self.cache_lbl, "left")
 
         # ── Orientation controls ──
         rbar = tk.Frame(zbar, bg=BG_DARK)
-        rbar.pack(side=tk.LEFT, padx=(0, 10))
+        zbar.add(rbar, "left")
         for ic, cmd in [
             ("undo",            self.rotate_ccw),
             ("redo",            self.rotate_cw),
@@ -1843,7 +1957,7 @@ class VisManager:
             zbar, text="scroll to zoom  \u2022  drag to pan  \u2022  "
                        "double-click toggles fit / 1:1",
             bg=BG_DARK, fg=TEXT_MUTED, font=("Helvetica", 8))
-        self.zoom_hint.pack(side=tk.LEFT)
+        zbar.add(self.zoom_hint, "left")
 
         # Canvas
         self.canvas = tk.Canvas(viewer, bg=BG_DARK, highlightthickness=0, cursor="crosshair")
@@ -1861,82 +1975,79 @@ class VisManager:
         self.canvas.bind("<Double-Button-1>", self._on_double_click)
 
         # Navigation + control bar
-        self._nav = nav = tk.Frame(viewer, bg=BG_MID, pady=10)
+        #
+        # Restructured as stacked rows: the old three-column layout (left nav /
+        # centre / right nav) had the outer groups overlapping the centre once
+        # the window narrowed. Now every control lives in one FlowBar that
+        # wraps, and the text lines sit above and below it.
+        self._nav = nav = tk.Frame(viewer, bg=BG_MID, pady=8)
         nav.pack(side=tk.BOTTOM, fill=tk.X)
 
-        # Left nav
-        left = tk.Frame(nav, bg=BG_MID)
-        left.pack(side=tk.LEFT, padx=14)
-        b_pf = self._btn(left, f"{GLYPHS['prev2']} Folder", self.prev_folder, bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        b_pf.pack(side=tk.LEFT, padx=3)
-        self._shortcut_btns["prev_folder"] = (b_pf, f"{GLYPHS['prev2']} Folder")
-
-        b_pi = self._btn(left, f"{GLYPHS['prev']} Prev", self.prev_image, bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        b_pi.pack(side=tk.LEFT, padx=3)
-        self._shortcut_btns["prev_image"] = (b_pi, f"{GLYPHS['prev']} Prev")
-
-        # Right nav — must be packed BEFORE centre so that centre's expand=True
-        # only fills the true middle space and doesn't push right off-screen.
-        right = tk.Frame(nav, bg=BG_MID)
-        right.pack(side=tk.RIGHT, padx=14)
-        b_ni = self._btn(right, f"Next {GLYPHS['next']}", self.next_image, bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        b_ni.pack(side=tk.LEFT, padx=3)
-        self._shortcut_btns["next_image"] = (b_ni, f"Next {GLYPHS['next']}")
-
-        b_nf = self._btn(right, f"Folder {GLYPHS['next2']}", self.next_folder, bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        b_nf.pack(side=tk.LEFT, padx=3)
-        self._shortcut_btns["next_folder"] = (b_nf, f"Folder {GLYPHS['next2']}")
-
-        # Centre — packed last so expand fills only the gap between left and right
-        centre = tk.Frame(nav, bg=BG_MID)
-        centre.pack(side=tk.LEFT, expand=True)
-
-        self.img_name_lbl = tk.Label(centre, text="", bg=BG_MID, fg=TEXT_PRIMARY,
+        self.img_name_lbl = tk.Label(nav, text="", bg=BG_MID, fg=TEXT_PRIMARY,
                                      font=("Helvetica", 12, "bold"))
         self.img_name_lbl.pack()
 
-        self.pos_lbl = tk.Label(centre, text="", bg=BG_MID, fg=TEXT_MUTED,
+        self.pos_lbl = tk.Label(nav, text="", bg=BG_MID, fg=TEXT_MUTED,
                                 font=("Helvetica", 9))
         self.pos_lbl.pack()
 
-        # Keep / Delete buttons
-        btn_row = tk.Frame(centre, bg=BG_MID)
-        btn_row.pack(pady=6)
+        actions = FlowBar(nav, bg=BG_MID, hgap=7, pady=2)
+        actions.pack(fill=tk.X, padx=14, pady=(7, 2))
+        self._actions_flow = actions
 
-        self.keep_btn = self._btn(btn_row, f"{GLYPHS['keep']}  KEEP", self.act_keep,
-                                  bg=BTN_KEEP, hover=BTN_KEEP_HOV, width=16)
-        self.keep_btn.pack(side=tk.LEFT, padx=6)
+        b_pf = self._btn(actions, f"{GLYPHS['prev2']} Folder", self.prev_folder,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+        actions.add(b_pf, "left")
+        self._shortcut_btns["prev_folder"] = (b_pf, f"{GLYPHS['prev2']} Folder")
+
+        b_pi = self._btn(actions, f"{GLYPHS['prev']} Prev", self.prev_image,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+        actions.add(b_pi, "left")
+        self._shortcut_btns["prev_image"] = (b_pi, f"{GLYPHS['prev']} Prev")
+
+        centre = tk.Frame(actions, bg=BG_MID)
+        self.keep_btn = self._btn(centre, f"{GLYPHS['keep']}  KEEP", self.act_keep,
+                                  bg=BTN_KEEP, hover=BTN_KEEP_HOV, width=13)
+        self.keep_btn.pack(side=tk.LEFT, padx=4)
         self._shortcut_btns["keep"] = (self.keep_btn, f"{GLYPHS['keep']}  KEEP")
 
-        self.del_btn = self._btn(btn_row, f"{GLYPHS['delete']}  DELETE", self.act_delete,
-                                 bg=BTN_DEL, hover=BTN_DEL_HOV, width=16)
-        self.del_btn.pack(side=tk.LEFT, padx=6)
+        self.del_btn = self._btn(centre, f"{GLYPHS['delete']}  DELETE", self.act_delete,
+                                 bg=BTN_DEL, hover=BTN_DEL_HOV, width=13)
+        self.del_btn.pack(side=tk.LEFT, padx=4)
         self._shortcut_btns["delete"] = (self.del_btn, f"{GLYPHS['delete']}  DELETE")
 
-        # Flag / note button sits with Keep and Delete
-        self.note_btn = self._btn(btn_row, "", self.edit_note,
+        self.note_btn = self._btn(centre, "", self.edit_note,
                                   image=icon("edit-document"),
-                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=9)
-        self.note_btn.pack(side=tk.LEFT, padx=6)
+                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=8)
+        self.note_btn.pack(side=tk.LEFT, padx=4)
 
-        # Flag on its own button: flagging without writing a note is the
-        # common case, and it previously had no visible control at all.
-        self.flag_btn = self._btn(btn_row, "", self.toggle_flag,
-                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=9)
-        self.flag_btn.pack(side=tk.LEFT, padx=6)
+        self.flag_btn = self._btn(centre, "", self.toggle_flag,
+                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=8)
+        self.flag_btn.pack(side=tk.LEFT, padx=4)
         self._shortcut_btns["flag"] = (self.flag_btn, "")
+        actions.add(centre, "left")
 
-        # Inline preview of the current note
-        self.note_lbl = tk.Label(centre, text="", bg=BG_MID, fg=FLAG_TEXT,
+        b_ni = self._btn(actions, f"Next {GLYPHS['next']}", self.next_image,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+        actions.add(b_ni, "right")
+        self._shortcut_btns["next_image"] = (b_ni, f"Next {GLYPHS['next']}")
+
+        b_nf = self._btn(actions, f"Folder {GLYPHS['next2']}", self.next_folder,
+                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+        actions.add(b_nf, "right")
+        self._shortcut_btns["next_folder"] = (b_nf, f"Folder {GLYPHS['next2']}")
+
+        # Status lines below the buttons
+        self.note_lbl = tk.Label(nav, text="", bg=BG_MID, fg=FLAG_TEXT,
                                  font=("Helvetica", 9))
         self.note_lbl.pack()
 
-        self.state_lbl = tk.Label(centre, text="", bg=BG_MID, font=("Helvetica", 11, "bold"))
+        self.state_lbl = tk.Label(nav, text="", bg=BG_MID,
+                                  font=("Helvetica", 11, "bold"))
         self.state_lbl.pack()
 
-        # Navigation-mode toggle
         self.nav_mode_btn = self._btn(
-            centre, "", self.toggle_nav_mode,
+            nav, "", self.toggle_nav_mode,
             bg=BTN_KEYS, hover=BTN_KEYS_HOV, font_size=8,
         )
         self.nav_mode_btn.pack(pady=(4, 0))
@@ -2015,13 +2126,24 @@ class VisManager:
             self.export_btn.configure(
                 text="Notes" if compact else "Export Notes")
         if hasattr(self, "zoom_hint"):
-            if compact:
-                self.zoom_hint.pack_forget()
-            elif not self.zoom_hint.winfo_ismapped():
-                self.zoom_hint.pack(side=tk.LEFT)
+            self.zoom_hint.configure(
+                text="" if compact else
+                     "scroll to zoom  \u2022  drag to pan  \u2022  "
+                     "double-click toggles fit / 1:1")
+            if hasattr(self, "_zb_flow"):
+                self._zb_flow.reflow()
         if hasattr(self, "stats_lbl"):
             self._update_stats()
         self._refresh_shortcut_labels()
+
+    def _reflow_bars(self):
+        for attr in ("_tb_flow", "_zb_flow", "_actions_flow", "_fs_flow"):
+            bar = getattr(self, attr, None)
+            if bar is not None:
+                try:
+                    bar.reflow()
+                except Exception:
+                    pass
 
     def _on_root_configure(self, event):
         if event.widget is self.root:
@@ -2047,6 +2169,7 @@ class VisManager:
         self._refresh_nav_mode_btn()
         self._refresh_preload_btn()
         self._refresh_note_ui()
+        self._reflow_bars()
 
         # Status bar hint line
         if hasattr(self, "status_lbl"):
@@ -2066,13 +2189,42 @@ class VisManager:
         else:
             self.enter_fullscreen()
 
+    def toggle_fs_size(self):
+        """Switch between filling the display and filling the current window."""
+        self.settings["fullscreen_mode"] = (
+            "window" if self.settings.get("fullscreen_mode", "screen") == "screen"
+            else "screen")
+        save_config(self.bindings, self.settings)
+        if getattr(self, "_fullscreen", False):
+            self._apply_fs_size()
+            self._refresh_fs_size_btn()
+            self.root.after(80, lambda: self._render_view(recenter=True))
+        else:
+            self._refresh_fs_size_btn()
+
+    def _apply_fs_size(self):
+        want_screen = self.settings.get("fullscreen_mode", "screen") == "screen"
+        try:
+            self.root.attributes("-fullscreen", bool(want_screen))
+        except tk.TclError:
+            pass
+
+    def _refresh_fs_size_btn(self):
+        if not hasattr(self, "fs_size_btn") or self.fs_size_btn is None:
+            return
+        screen = self.settings.get("fullscreen_mode", "screen") == "screen"
+        self.fs_size_btn.configure(
+            text="Screen size" if screen else "Window size",
+            bg=BTN_KEYS if screen else BTN_NAV,
+            hover=BTN_KEYS_HOV if screen else BTN_NAV_HOV)
+
     def enter_fullscreen(self):
-        """Hide every panel so the image gets the whole screen."""
+        """Hide the panels and give the image the whole area, keeping a
+        compact strip of view controls so the mode stays usable."""
         if getattr(self, "_fullscreen", False) or self._src_img is None:
             return
         self._fullscreen = True
 
-        # Remember the sash position so the sidebar returns where it was
         try:
             self._saved_sash = self._pane.sash_coord(0)[0]
         except Exception:
@@ -2089,21 +2241,99 @@ class VisManager:
         except Exception:
             pass
 
-        try:
-            self.root.attributes("-fullscreen", True)
-        except tk.TclError:
-            pass
-
-        self._fs_hint = tk.Label(
-            self.root,
-            text=f"{os.path.basename(self._cur_file() or '')}    "
-                 f"{self.cur_image_idx + 1}/{len(self._cur_files())}    "
-                 f"Esc or {display_binding(self.bindings.get('fullscreen'))} to exit",
-            bg=BG_MID, fg=TEXT_MUTED, font=("Helvetica", 10), pady=4)
-        self._fs_hint.pack(side=tk.BOTTOM, fill=tk.X)
-
+        self._apply_fs_size()
+        self._build_fs_bar()
         self.root.bind("<Escape>", lambda e: self.exit_fullscreen())
         self.root.after(60, lambda: self._render_view(recenter=True))
+
+    def _build_fs_bar(self):
+        """Compact control strip shown only in fullscreen."""
+        bar = tk.Frame(self.root, bg=BG_MID)
+        bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self._fs_hint = bar
+
+        flow = FlowBar(bar, bg=BG_MID, hgap=6, pady=5)
+        flow.pack(fill=tk.X, padx=10)
+        self._fs_flow = flow
+
+        self.fs_name_lbl = tk.Label(flow, text="", bg=BG_MID, fg=TEXT_PRIMARY,
+                                    font=("Helvetica", 10, "bold"))
+        flow.add(self.fs_name_lbl, "left")
+
+        nav = tk.Frame(flow, bg=BG_MID)
+        for txt, cmd in ((GLYPHS["prev"], self.prev_image),
+                         (GLYPHS["next"], self.next_image)):
+            self._btn(nav, txt, cmd, bg=BTN_NAV, hover=BTN_NAV_HOV,
+                      font_size=9).pack(side=tk.LEFT, padx=2)
+        flow.add(nav, "left")
+
+        mark = tk.Frame(flow, bg=BG_MID)
+        self.fs_keep_btn = self._btn(mark, GLYPHS["keep"], self.act_keep,
+                                     bg=BTN_KEEP, hover=BTN_KEEP_HOV, font_size=9)
+        self.fs_keep_btn.pack(side=tk.LEFT, padx=2)
+        self.fs_del_btn = self._btn(mark, GLYPHS["delete"], self.act_delete,
+                                    bg=BTN_DEL, hover=BTN_DEL_HOV, font_size=9)
+        self.fs_del_btn.pack(side=tk.LEFT, padx=2)
+        self.fs_flag_btn = self._btn(mark, GLYPHS["flag_off"], self.toggle_flag,
+                                     bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+        self.fs_flag_btn.pack(side=tk.LEFT, padx=2)
+        flow.add(mark, "left")
+
+        # View operations — the reason fullscreen was awkward before
+        view = tk.Frame(flow, bg=BG_MID)
+        for ic, cmd in (("undo", self.rotate_ccw), ("redo", self.rotate_cw),
+                        ("flip-horizontal", self.flip_horizontal),
+                        ("flip-vertical", self.flip_vertical)):
+            self._btn(view, "", cmd, image=icon(ic), bg=BTN_NAV,
+                      hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
+        flow.add(view, "left")
+
+        zoom = tk.Frame(flow, bg=BG_MID)
+        self._btn(zoom, "", self.zoom_out, image=icon("collapse"),
+                  bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
+        self.fs_zoom_lbl = tk.Label(zoom, text="Fit", bg=BG_MID, fg=TEXT_PRIMARY,
+                                    font=("Helvetica", 9, "bold"), width=6)
+        self.fs_zoom_lbl.pack(side=tk.LEFT, padx=2)
+        self._btn(zoom, "", self.zoom_in, image=icon("expand"),
+                  bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
+        self._btn(zoom, "Fit", self.zoom_fit, bg=BTN_NAV, hover=BTN_NAV_HOV,
+                  font_size=9).pack(side=tk.LEFT, padx=2)
+        self._btn(zoom, "1:1", self.zoom_actual, bg=BTN_NAV, hover=BTN_NAV_HOV,
+                  font_size=9).pack(side=tk.LEFT, padx=2)
+        flow.add(zoom, "left")
+
+        self.fs_size_btn = self._btn(flow, "", self.toggle_fs_size,
+                                     bg=BTN_KEYS, hover=BTN_KEYS_HOV, font_size=9)
+        flow.add(self.fs_size_btn, "right")
+        self._refresh_fs_size_btn()
+
+        flow.add(self._btn(flow, f"{GLYPHS['clear']}  Exit  [Esc]",
+                           self.exit_fullscreen, bg=BTN_INVERT,
+                           hover="#606878", font_size=9), "right")
+        self._refresh_fs_labels()
+
+    def _refresh_fs_labels(self):
+        if not getattr(self, "_fullscreen", False):
+            return
+        fp = self._cur_file()
+        if fp and hasattr(self, "fs_name_lbl"):
+            files = self._cur_files()
+            folder = rel(os.path.dirname(fp), self.base_dir)
+            self.fs_name_lbl.config(
+                text=f"{os.path.basename(fp)}   "
+                     f"{self.cur_image_idx + 1}/{len(files)}   \u2022   {folder}")
+        state = self.image_states.get(fp, True) if fp else True
+        if hasattr(self, "fs_keep_btn"):
+            self.fs_keep_btn.configure(bg=BTN_KEEP_HOV if state else "#0d4a22")
+            self.fs_del_btn.configure(bg="#6b1111" if state else BTN_DEL_HOV)
+        if hasattr(self, "fs_flag_btn"):
+            flagged = bool(fp) and fp in self.notes
+            self.fs_flag_btn.configure(
+                text=GLYPHS["flag_on"] if flagged else GLYPHS["flag_off"],
+                bg=FLAG_ON if flagged else BTN_NAV,
+                hover=FLAG_ON_HOV if flagged else BTN_NAV_HOV)
+        if hasattr(self, "fs_zoom_lbl"):
+            self.fs_zoom_lbl.config(text=self.zoom_lbl.cget("text"))
 
     def exit_fullscreen(self):
         if not getattr(self, "_fullscreen", False):
@@ -2116,9 +2346,9 @@ class VisManager:
         if getattr(self, "_fs_hint", None) is not None:
             self._fs_hint.destroy()
             self._fs_hint = None
+        self.fs_size_btn = None
         self.root.unbind("<Escape>")
 
-        # Rebuild the layout in its original stacking order
         self._toolbar.pack(side=tk.TOP, fill=tk.X, before=self._pane)
         try:
             self._pane.add(self._sidebar, minsize=170, stretch="never",
@@ -2294,6 +2524,7 @@ class VisManager:
     def _after_note_change(self):
         self.notes_exported = False        # export is now out of date
         self._refresh_note_ui()
+        self._refresh_fs_labels()
         self._refresh_folder_lb()
         self._update_stats()
 
@@ -2751,6 +2982,7 @@ class VisManager:
         self._update_labels(fp, img)
         self._refresh_note_ui()
         self._refresh_transform_ui()
+        self._refresh_fs_labels()
 
     # ─── Zoom / pan ───────────────────────────────────────────────────────────
     ZOOM_MIN, ZOOM_MAX = 0.1, 64.0        # multipliers on top of fit
@@ -2841,7 +3073,10 @@ class VisManager:
         fp = self._cur_file()
         state = self.image_states.get(fp, True)
         self.canvas.config(bg=KEEP_BG if state else DELETE_BG)
-        self.canvas.delete("all")
+        # Draw the replacement first and remove the old items afterwards.
+        # Clearing up front leaves one frame of empty canvas, which shows as
+        # a visible blink on every zoom, pan and resize step.
+        stale = self.canvas.find_all()
 
         src, src_scale = self._render_source(s)
         es = s / src_scale                 # src pixels -> screen pixels
@@ -2868,6 +3103,9 @@ class VisManager:
             self._photo = ImageTk.PhotoImage(crop.resize((tw, th), resample))
             self.canvas.create_image(self._ox + x0 * es, self._oy + y0 * es,
                                      anchor=tk.NW, image=self._photo)
+
+        for item in stale:
+            self.canvas.delete(item)
 
         self._update_zoom_label(s)
 
@@ -2896,6 +3134,8 @@ class VisManager:
         self.zoom_lbl.config(
             text=txt,
             fg=TEXT_PRIMARY if abs(self._zoom - 1.0) < 0.001 else "#fbbf24")
+        if getattr(self, "_fullscreen", False) and hasattr(self, "fs_zoom_lbl"):
+            self.fs_zoom_lbl.config(text=txt)
 
     def _set_zoom(self, new_zoom, anchor=None, interactive=False):
         """Zoom to new_zoom, keeping the point under `anchor` (canvas x,y) put."""
@@ -3202,11 +3442,26 @@ class VisManager:
             self._start_preload()
 
     def _on_canvas_resize(self, _event=None):
+        """
+        Keep the image tracking the window while it is being dragged.
+
+        Waiting for the resize to settle left the canvas showing a stale
+        image for 120ms and then snapping to the new size — with white-page
+        documents that reads as a flash. An interactive render costs only a
+        few milliseconds, so the picture can follow the edge continuously;
+        the sharp pass still happens once the drag stops.
+        """
+        if self._src_img is not None and self._resize_paint_job is None:
+            self._resize_paint_job = self.root.after_idle(self._resize_paint)
         if self._resize_job:
             self.root.after_cancel(self._resize_job)
-        # Re-render from the cached image instead of re-reading from disk,
-        # and preserve the user's zoom across a window resize.
-        self._resize_job = self.root.after(120, self._on_resize_done)
+        self._resize_job = self.root.after(140, self._on_resize_done)
+
+    def _resize_paint(self):
+        self._resize_paint_job = None
+        if self._src_img is not None:
+            self._render_view(recenter=abs(self._zoom - 1.0) < 0.001,
+                              interactive=True)
 
     def _on_resize_done(self):
         self._resize_job = None
@@ -3351,6 +3606,7 @@ class VisManager:
         self.flag_stat.config(
             text=(f"{GLYPHS['flag_on']} {len(self.notes)}") if self.notes else "")
         self.total_stat.config(text=f"of {total}")
+        self._reflow_bars()
 
     # ─── Processing ───────────────────────────────────────────────────────────
     @staticmethod
@@ -4501,6 +4757,38 @@ def main():
         from ctypes import windll
         windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
+        pass
+
+    # Dark defaults for anything Tk paints on its own. During a live resize
+    # the OS fills newly exposed area before Tk repaints it, using the
+    # window's background — on a light default palette that is the white
+    # flash at the trailing edge of the window. Setting the palette before
+    # any widget exists makes that fill dark instead.
+    try:
+        root.tk_setPalette(
+            background=BG_DARK, foreground=TEXT_PRIMARY,
+            activeBackground=BG_MID, activeForeground=TEXT_PRIMARY,
+            selectBackground=ACCENT_BLUE, selectForeground="white",
+            highlightBackground=BG_DARK, highlightColor=BORDER,
+            insertBackground=TEXT_PRIMARY, troughColor=BG_MID,
+        )
+    except tk.TclError:
+        pass
+    root.configure(bg=BG_DARK)
+
+    # ttk keeps its own theme colours, which default to light grey and would
+    # otherwise flash the same way.
+    try:
+        style = ttk.Style(root)
+        style.theme_use("clam")
+        style.configure(".", background=BG_DARK, foreground=TEXT_PRIMARY,
+                        fieldbackground=BG_MID, bordercolor=BORDER,
+                        darkcolor=BG_MID, lightcolor=BG_MID,
+                        troughcolor=BG_MID, focuscolor=ACCENT_BLUE)
+        style.configure("TProgressbar", background=ACCENT_BLUE,
+                        troughcolor=BG_MID, bordercolor=BORDER,
+                        lightcolor=ACCENT_BLUE, darkcolor=ACCENT_BLUE)
+    except tk.TclError:
         pass
 
     # Dark title-bar on macOS (best effort)
