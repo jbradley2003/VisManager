@@ -205,6 +205,43 @@ WORDMARK_PNG_B64 = (
 )
 
 ICON_B64 = {
+    "file-single": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAD2ElEQVR42nVVTWhiVxj97nsqecNgOiU6MPlhkjji"
+        "xtbWhTODkVQCJjSBjr4uBssECaFdhJAQ0GoHJgG7aDZqMuBk3JRkFWRIIi4CCdGxqDAZuhB3T0wXZjEEI6G++FN9"
+        "XxftS/2ZnuXlct459zvfeQD/ghACEokEJBIJdEKn0zFut/tRMpl8xfP8hcPheAAAQNN0112gaRooimo7YxgGTCZT"
+        "r9frnUin06FKpVLCFnAcdyyTyYAQAoQQ+CiUSiVltVrvhUKhZ7lc7gQ7UCgU3u/t7f14fX1dRERkWXYAALod2Wy2"
+        "/kgk8rxYLOY6SbLZ7L7f739iNpvviEqi0egLQRCaiUTiJQB0uYNWgnK5/CEejwc8Hs9jrVbb03pvfHz8E5VKJR0b"
+        "G+tFRBQEoWk0GuWEkPa3jMfjgUajUeM47nh0dFQqnsvlcsKy7MDOzs4PhULhPSJiLpc7AQA4PT3dFgShGQ6HV7qG"
+        "Y7FY+gRBaNbrdV6r1fZoNBrZ4eHhz+Vy+UOr+kwm82ZpaekLmqZhdnZ2FBGxWq1eqdVqGSHkP+sURUEqlXqNiLi1"
+        "tfXd4uLi54iIlUqlFIvFfE6n09Bpn6IoODs7+w0RMRAIWLtU2u32+4iIPM9f6PX6W5OTk31DQ0Nt4zMYDLfX1ta+"
+        "ikajLzQajWxhYeEzRMRisZhTKBTUjUpCCDAMA/l8/i0ios/n+wYAQCqVwvT09N1gMPi0M0bz8/MahmGgVCr9gYjo"
+        "crke3kRIzJHL5XqIiHh5eZnv7++nxWdoDXMwGHw6NTWlEFVvbGywiIj5fP4twzD/hJyiKCCEgEKhoMQsLi8vf7m5"
+        "ufntu3fvfl1dXR03GAy3W+0PDw9LBgcHaZVKJa3Van8iItrt9vtt6wcAEAgErKKazsBqtdoep9NpiMVivkajUatW"
+        "q1c0TcPu7u4SImIqlXrdNmlCCKjValm1Wr0Sv8gwDKyvr3+dyWTetNrnef4iHA6vSCQS0Ov1t+r1Oi8IQtNisfR1"
+        "qQyHwyuCIDSPjo5+sVgsfSLJ+fn579vb29+zLDsgl8tvGmFkZETKcdxxo9GoxePxQBshIQSMRqNcEIRms9n8a2Zm"
+        "5u7c3Jx6YmLi0077Ho/ncSwW8/E8f9GqHjoDCwCQSCReCoLQ3N/fd4tdaTab7/j9/ifZbHa/s0SKxWIuEok8t9ls"
+        "/W2EYoRYlh0Qt+Xg4OAncZdbkcvlTkKh0DOr1XpPqVRSH+1EsTBlMhlwHHfcSlCpVErpdDrk9XonTCZTL8MwXe7+"
+        "t8EBABwOxwOe5y+SyeQrt9v9SKfTMZ13xV9Ga2v/DQXzflftm0k/AAAAAElFTkSuQmCC"
+    ),
+    "files-stack": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAEAUlEQVR42o1Ub0jidxj/+tP0zDzd7Sb7zdwV10Zq"
+        "rRGdzYSfEHa5hJKIiBjOFk2IcojC9Qe6waX24nzX4rpa0L2Q0JJxGBrMEYQuZqySRLZ0rMsw6Z8RmWXt2ZsZ7s5u"
+        "+7z6vni+Hz7P83yeD0JZwDAMkclk9Dr4fD5Np9NV+ny+58lk8kCpVOIIoZy1OVFQUEAiCII1MjLyeTAYfAn/4PDw"
+        "8I/z8/OTQCAwR6FQEIZhiEQi5SYhkUiorKzsltVq7dnb2/stQxIKheZNJtNDuVx+F8dxTKvVVgAAqNXqEoQQolAo"
+        "Nyvr6en5BAAgHA7/pNfrq0QiEYMgCNbAwEDN+vq6/ejo6E8cx7FIJLK4s7PzK51Ov1klhmGIyWSS4vF40O/3v+By"
+        "ueRYLLYOAJBMJg9sNpuupaWlECGE2traPgQAMBgMD/5TZWdn58cAAMPDw7LBwUEJQRCse/fuUWQy2Z2xsbG27e3t"
+        "X4RCIc3v979IJBKv2Gw2CcOwN4lKS0upa2trNolEcnt1dXUmFoutU6lUZLPZdJl5bm1t/WyxWBoRQkgqlbIBAIxG"
+        "Y11OZcXFxRQAAI/H81ShUHAAACwWS+Pk5OSXer2+SiAQ0EpKSvLa29uL3G63USwWM10u15Ozs7OjwsLC3P7p7+8X"
+        "AwDI5fK7Ho/n6cnJyS5CCGk0GkG2fbxe7zMej0eurKzMv7y8PLdarT3Xbsk8qqqqGLu7u6mVlZW1aDS6ptfrexcX"
+        "F49GR0dbmUwmi8FgsOx2uy0cDh9wOJx8pVJZ39jYaMBx/FMA+AvDsH+rBACYnp7+WqVS3QcAaG1t5c3OzhrS6fRZ"
+        "TU0NU6VS3Xc4HI9SqdRxRunGxsYPJpPpoUgkYrzR7szMzDcAABKJ5HYwGHwZiUQWxWIxE7JwdXWVdrlcTzo6Oj7i"
+        "cDjYW8+Ny+WSU6nU8fz8/LdNTU3vAwD09vZWaLXaivHx8S+kUik7u14oFNKGhoYIp9P5uKioKLcRjUZjHQCATCa7"
+        "s7S09F1mKQghRKPRkEKh4ExNTX0Vj8eDGdX7+/u/CwQCWs5LYbPZpOPj46jP53teV1f3LgCA0+l8vLCwYMpuPRQK"
+        "zZvN5vrq6uqCvLy83C1nzsdgMDwAAGhubv7A4XA8AgBIp9Nnbrfb2NXVVYrj+PXsqFTqdbDkTBsMwxCdTkfRaHRl"
+        "c3PzRx6PR66trX0n+wOfz6f19fV9try8/D0AgEajEdy4mIxKtVpdAgDQ3d1dhhBCDQ0N701MTKgyYQEAkEgkXtnt"
+        "dn15efmtt2YihmGIQqGgQCAwd3FxcXp6erqXIQkEAnNms7meIAhWfn7+/0vrTKwrlUo8mUweeL3eZzqdrpLP59Ny"
+        "1b6eNH8DzGwdt9ljsRoAAAAASUVORK5CYII="
+    ),
     "flag": (
         "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAACYUlEQVR42qVTTUsbURQ9782bDCiIJBrsH4g7d+o/"
         "yMaNq9JSSqFCV1mWlG66cSkUCtaIWKmLrioidTFQQggkgggKLkKnEpoBmUUIGLCkGp37bjeZ6ctHu+nZzZt7z7nv"
@@ -337,20 +374,9 @@ ICON_B64 = {
         "e7iUUZZlD9M0fY7j2K+TYGVZPlsy59zjnHvzPI+Xuqa1HizP2sqyfP4DV0mIUPnlzvkAAAAASUVORK5CYII="
     ),
     "edit-document": (
-        "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAADSklEQVR42oVUTUhjVxQ+5777Xto4GmMmpUVjaVDa"
-        "jWDTooi61sVUQdJSuykWd5WA4sJFdyLiD4oKWdlS0NXYSkAGpQsXxQQVLe3GsY2jmMZRYvPTF+0jee/e08VM3gTb"
-        "2gN3cbjnfue733fuhWAwWJdKpZ7S/4Su6897enreBABQVRXuBqbT6RPLsgobGxvTjDGFiMjeREQiosbGxg86Ozu/"
-        "LBaLN729ve9sbW39wTkHy7JeIRERhcPhT+Ge6O/vf1tKKVKp1NNCoZDv7u5+CADAGLNrGBFJTdMcnHNwOp2gaZq9"
-        "Srnb7a5ERLazs/MtAEAkEnnW1dX1kIhAUZRXjJaXlz+/j1EwGKy7q9nu7u7X5aw4AIAQQqiqCn6/X7MsixARiAgQ"
-        "EUzTpEgkkgwEAk5VVRkRwdra2g+qqr5W3owDAORyuczQ0FBgbm7u8N8YdXR0uKLRqF7KDcPIKYqi/gOoqqrKNTU1"
-        "tZlIJOqEELLkFgBAsVi0YrGYDcIYg7sgNpBhGH+1t7e/MTw8/JUQwiwvREScnJz0cM4dJycne319fRNSSoEvAhhj"
-        "IKV8AcQYY4ZhmJlM5kIIYSmKwsu7XV1dPUNElkgkfiMiICKpKIpKRPYscQAATdMcR0dHf0YikcdCCIGIWD5nUkpC"
-        "RLy8vMwREVRUVHjOz88PvV4v8/v9zr29vRskIpqZmXmUTCaTCwsLP983BhcXF4cNDQ0fhsPhLyorK935fD4bCAS6"
-        "m5ubP+EAAC6Xyz02NvYkFos9EELI8sPX19dF0zRJURTMZrMCEUHX9azX660zDOMmGo1+b19N1/VcKBR6f35+/qe7"
-        "LJaWlj4OhULfvXQXp6enP6uvr3/XNM1CdXW1d3FxcRUAgL8UTlldXf0ll8s1ltuPiLi/v/87AIDP51MmJiYGPR7P"
-        "W4Zh5G9vb/Xx8fFv4vG4CQDAEZG1tbU9ampq+vH4+PhKSml/AIgINTU1jpaWFnVkZGSwpIvD4Xj99PT013g8bpZ+"
-        "AT47O/vR6Ojoxvb29uB/iby5uTmeTqef67qe5pxrtbW1762vrz9mjIHdFACgtbX1gc/nqy5zvWQ9cM7Z2dlZZmBg"
-        "oFdKKVZWVp6YpikPDg5uS28SAOBvl4rZhfiNzQMAAAAASUVORK5CYII="
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAcUlEQVR4nO2USw6AMBBCwfT+V8aNGj+TCq1L2Za8"
+        "lA4d4GMRACSpayIZUXtAbXJZi2MiSRdqAROoBTzHtm6avNGbtyVmZ9oXYFyPQvZQXP2RxyNL0nE+28NH6WeA5Q8a"
+        "BVawVhld8L4wptsRLYoUetcKHvCDzN81x04AAAAASUVORK5CYII="
     ),
     "collapse": (
         "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAACCElEQVR42s2UP2/aUBTFz/tjYVWISoAHpGR5A7Cx"
@@ -2025,7 +2051,7 @@ class VisManager:
         scroller.pack(fill=tk.BOTH, expand=True)
         self._vtb_scroll = scroller
 
-        tb = tk.Frame(scroller.body, bg=BG_SIDEBAR, padx=7, pady=6)
+        tb = tk.Frame(scroller.body, bg=BG_SIDEBAR, padx=9, pady=9)
         tb.pack(fill=tk.BOTH, expand=True)
         self._vtb_body = tb
 
@@ -2037,12 +2063,12 @@ class VisManager:
         def head(text):
             lbl = tk.Label(tb, text=text, bg=BG_SIDEBAR, fg=TEXT_MUTED,
                            font=("Helvetica", 7, "bold"))
-            lbl.pack(pady=(4, 2))
-            self._vtb_optional.append((lbl, {"pady": (4, 2)}))
+            lbl.pack(pady=(9, 4))
+            self._vtb_optional.append((lbl, {"pady": (9, 4)}))
 
         def pair(items):
             row = tk.Frame(tb, bg=BG_SIDEBAR)
-            row.pack()
+            row.pack(pady=3)
             out = []
             for kind, val, cmd in items:
                 if kind == "icon":
@@ -2051,7 +2077,7 @@ class VisManager:
                 else:
                     b = self._btn(row, val, cmd, bg=BTN_NAV,
                                   hover=BTN_NAV_HOV, font_size=8, width=3)
-                b.pack(side=tk.LEFT, padx=3)
+                b.pack(side=tk.LEFT, padx=5)
                 out.append(b)
             return out
 
@@ -2065,13 +2091,13 @@ class VisManager:
 
         self.rot_lbl = tk.Label(tb, text="\u2014", bg=BG_SIDEBAR, fg=TEXT_MUTED,
                                 font=("Helvetica", 8, "bold"))
-        self.rot_lbl.pack(pady=(4, 1))
+        self.rot_lbl.pack(pady=(7, 3))
         self._btn(tb, "Reset", self.reset_transform, bg=BTN_INVERT,
-                  hover="#606878", font_size=8).pack(fill=tk.X, pady=(0, 2))
+                  hover="#606878", font_size=8).pack(fill=tk.X, pady=(0, 5))
 
         sep1 = tk.Frame(tb, bg=BORDER, height=1)
-        sep1.pack(fill=tk.X, pady=4)
-        self._vtb_optional.append((sep1, {"fill": tk.X, "pady": 4}))
+        sep1.pack(fill=tk.X, pady=8)
+        self._vtb_optional.append((sep1, {"fill": tk.X, "pady": 8}))
 
         head("ZOOM")
         pair([("icon", "collapse", self.zoom_out),
@@ -2079,18 +2105,18 @@ class VisManager:
 
         self.zoom_lbl = tk.Label(tb, text="Fit", bg=BG_SIDEBAR, fg=TEXT_PRIMARY,
                                  font=("Helvetica", 9, "bold"))
-        self.zoom_lbl.pack(pady=(4, 2))
+        self.zoom_lbl.pack(pady=(7, 4))
 
         self.zoom_fit_btn, self.zoom_100_btn = pair(
             [("text", "Fit", self.zoom_fit), ("text", "1:1", self.zoom_actual)])
 
         sep2 = tk.Frame(tb, bg=BORDER, height=1)
-        sep2.pack(fill=tk.X, pady=4)
-        self._vtb_optional.append((sep2, {"fill": tk.X, "pady": 4}))
+        sep2.pack(fill=tk.X, pady=8)
+        self._vtb_optional.append((sep2, {"fill": tk.X, "pady": 8}))
         self.fs_btn = self._btn(tb, "", self.toggle_fullscreen,
                                 image=icon("corners"),
                                 bg=BTN_KEYS, hover=BTN_KEYS_HOV)
-        self.fs_btn.pack(pady=(2, 0))
+        self.fs_btn.pack(pady=(5, 3))
         self._shortcut_btns["fullscreen"] = (self.fs_btn, "")
 
         self._vtb_compact = False
@@ -3086,14 +3112,17 @@ class VisManager:
     def _refresh_preload_btn(self):
         if not hasattr(self, "preload_btn"):
             return
-        on = self.settings.get("preload_mode") == "lazy"
-        base = ("One at a time" if on else "Whole folder")
+        lazy = self.settings.get("preload_mode") == "lazy"
+        base = "One at a time" if lazy else "Whole folder"
         self._shortcut_btns["preload"] = (self.preload_btn, base)
         key = self.bindings.get("preload")
+        # A single sheet for one-at-a-time, a stack for whole-folder — the
+        # icon says which mode is active without reading the label.
         self.preload_btn.configure(
             text=f"{base}  [{display_binding(key)}]" if key else base,
-            bg=BTN_NAV if on else "#0e7490",
-            hover=BTN_NAV_HOV if on else "#0891b2",
+            image=icon("file-single" if lazy else "files-stack"),
+            bg=BTN_NAV if lazy else "#0e7490",
+            hover=BTN_NAV_HOV if lazy else "#0891b2",
         )
 
     def _update_cache_label(self):
