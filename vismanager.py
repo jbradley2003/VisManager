@@ -205,6 +205,50 @@ WORDMARK_PNG_B64 = (
 )
 
 ICON_B64 = {
+    "flag": (
+        "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAACYUlEQVR42qVTTUsbURQ9782bDCiIJBrsH4g7d+o/"
+        "yMaNq9JSSqFCV1mWlG66cSkUCtaIWKmLrioidTFQQggkgggKLkKnEpoBmUUIGLCkGp37bjeZ6ctHu+nZzZt7z7nv"
+        "nXMBA/Pz8+Pb29vPms1mjXuo1Wpf8vn84uTkpIjqpJSwLAtDSCaTYn19/WHUHATBWblcfnd8fPzh5uamzczs+/5R"
+        "Lpebm5mZkVGf4zgwBeB5nsvMXK1WC9lsNuU4TvwvnU7LfD6/2G63/Ujo5OTko+u6q77vHwVBcBYXMzOXSqW35pRS"
+        "SgjxR2xqakrmcrm5SqXyvtPptNhAXERE93t7ey8BIJFI9BEIIYbeY2JiQqRSKXF4ePhGa00AoHrqyrZtRwgBIoIp"
+        "wswgophQa43r62sGgDAM74QQEgCk0aBNgkEwM8IwhNYaSikIISCM0dWopl5RTDAoMOqsj8iyLEgph65nWRaYGVrr"
+        "v06sTOeICESEZDIppqen7TAMOQiC+9vb2z5C04zYZUNVLS0tpYvF4lqz2fzleV63Xq/fXV5efi8UCo9nZ2cTRASt"
+        "NYgoFh+8M3e73Z9RLqrVamFzc/PJ7u7ui4uLi6/R+cbGxqOFhYXxsbExAMDBwcFrIrrvy1EYht2dnZ3nmUwmMRjM"
+        "5eXlB6enp58iwqurqx+NRqMyFEhmZtd1V81mpRSUUn1OZrPZ1NbW1tPz8/PPjUajUiwW11ZWVjJ9RPv7+6+klLBt"
+        "e+ghR276KNeYWUsppdZ6pCNRsqP9i+Jhfqve2FIplfiXYrQqJsxcSQBotVqe7/vf8B/4DdmKicFiIl5AAAAAAElF"
+        "TkSuQmCC"
+    ),
+    "corners": (
+        "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAABhUlEQVR42s1UMYrrMBScJ8kgJxBc5xJL0voOv80t"
+        "fA8fJe0/wf52C+cGKdY47TcfEgksa36RaHGWJAtLip1SvBlGw7yHqqpe+r5/5wTjOA5lWS4AQGsNrTUAoCzLxTiO"
+        "w3S27/v3qqpeTF3Xr9ba4nA47EhGktF7/885FwCAJBKcc2G/3/+x1i5ERImIWi6Xq7quX0GSXdc1RVGItRZ5nkNE"
+        "cA8igjzPYa1FURTSdV1Dkia5OB6PHIbhijB1M31zzgEAxnFk4qtk0RgDEYFS6qZI+uZ05sI58wEgxhhCCB/Dt0Sm"
+        "YgkhBMQYAwBIWZaL0+k07HY7d8/JvaxIYrVa5bPZLMOzIFprkESM8VsCKS+Fn4bnhU2Sbdu+ZVkGEXnY6qmIiCDL"
+        "MrRt+0aS6hKYMcZcDX0lAgDGGCh17uLHioQQrsr4aEXS+4UTSUaTKj6fz8V7TxGB9/7hilhrQRLWWkl8cc79vXVG"
+        "NpvNr6ZpTkqdGxJjxHq9nm2329+fz4j3vsezDtt/RhtVgsOK7DQAAAAASUVORK5CYII="
+    ),
+    "flag": (
+        "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAACYUlEQVR42qVTTUsbURQ9782bDCiIJBrsH4g7d+o/"
+        "yMaNq9JSSqFCV1mWlG66cSkUCtaIWKmLrioidTFQQggkgggKLkKnEpoBmUUIGLCkGp37bjeZ6ctHu+nZzZt7z7nv"
+        "nXMBA/Pz8+Pb29vPms1mjXuo1Wpf8vn84uTkpIjqpJSwLAtDSCaTYn19/WHUHATBWblcfnd8fPzh5uamzczs+/5R"
+        "Lpebm5mZkVGf4zgwBeB5nsvMXK1WC9lsNuU4TvwvnU7LfD6/2G63/Ujo5OTko+u6q77vHwVBcBYXMzOXSqW35pRS"
+        "SgjxR2xqakrmcrm5SqXyvtPptNhAXERE93t7ey8BIJFI9BEIIYbeY2JiQqRSKXF4ePhGa00AoHrqyrZtRwgBIoIp"
+        "wswgophQa43r62sGgDAM74QQEgCk0aBNgkEwM8IwhNYaSikIISCM0dWopl5RTDAoMOqsj8iyLEgph65nWRaYGVrr"
+        "v06sTOeICESEZDIppqen7TAMOQiC+9vb2z5C04zYZUNVLS0tpYvF4lqz2fzleV63Xq/fXV5efi8UCo9nZ2cTRASt"
+        "NYgoFh+8M3e73Z9RLqrVamFzc/PJ7u7ui4uLi6/R+cbGxqOFhYXxsbExAMDBwcFrIrrvy1EYht2dnZ3nmUwmMRjM"
+        "5eXlB6enp58iwqurqx+NRqMyFEhmZtd1V81mpRSUUn1OZrPZ1NbW1tPz8/PPjUajUiwW11ZWVjJ9RPv7+6+klLBt"
+        "e+ghR276KNeYWUsppdZ6pCNRsqP9i+Jhfqve2FIplfiXYrQqJsxcSQBotVqe7/vf8B/4DdmKicFiIl5AAAAAAElF"
+        "TkSuQmCC"
+    ),
+    "fullscreen": (
+        "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAABhUlEQVR42s1UMYrrMBScJ8kgJxBc5xJL0voOv80t"
+        "fA8fJe0/wf52C+cGKdY47TcfEgksa36RaHGWJAtLip1SvBlGw7yHqqpe+r5/5wTjOA5lWS4AQGsNrTUAoCzLxTiO"
+        "w3S27/v3qqpeTF3Xr9ba4nA47EhGktF7/885FwCAJBKcc2G/3/+x1i5ERImIWi6Xq7quX0GSXdc1RVGItRZ5nkNE"
+        "cA8igjzPYa1FURTSdV1Dkia5OB6PHIbhijB1M31zzgEAxnFk4qtk0RgDEYFS6qZI+uZ05sI58wEgxhhCCB/Dt0Sm"
+        "YgkhBMQYAwBIWZaL0+k07HY7d8/JvaxIYrVa5bPZLMOzIFprkESM8VsCKS+Fn4bnhU2Sbdu+ZVkGEXnY6qmIiCDL"
+        "MrRt+0aS6hKYMcZcDX0lAgDGGCh17uLHioQQrsr4aEXS+4UTSUaTKj6fz8V7TxGB9/7hilhrQRLWWkl8cc79vXVG"
+        "NpvNr6ZpTkqdGxJjxHq9nm2329+fz4j3vsezDtt/RhtVgsOK7DQAAAAASUVORK5CYII="
+    ),
     "folder": (
         "iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAACNUlEQVR42r1Uv2uTURS978dHYtoOzcc3BByiFsSl"
         "kyUF4xRw6NQlQ5FCh1qoS5BMEjLaRTA45SPUQCxE6F9QoRlE0iQOnTo0II1QHUugpSRf3o/jUCNtoVGCeODC43Lv"
@@ -1731,7 +1775,7 @@ class VisManager:
                                   image=icon("folder"),
                                   bg=BTN_OPEN, hover=BTN_OPEN_HOV)
         tb.add(self.open_btn, "left")
-        self._shortcut_btns["open_dir"] = (self.open_btn, f"{GLYPHS['open']}  Open Directory")
+        self._shortcut_btns["open_dir"] = (self.open_btn, "Open Directory")
 
         # Open folder name — this is the primary "where am I" cue, so it gets
         # real weight instead of the muted 10pt it had before.
@@ -1790,8 +1834,21 @@ class VisManager:
         self._sidebar = sidebar = tk.Frame(pane, bg=BG_SIDEBAR, width=210)
         pane.add(sidebar, minsize=170, stretch="never")
 
-        tk.Label(sidebar, text="FOLDERS", bg=BG_SIDEBAR, fg=TEXT_MUTED,
-                 font=("Helvetica", 9, "bold")).pack(pady=(12, 4), padx=10, anchor=tk.W)
+        # Loading mode belongs with the folder list it governs, not on the
+        # strip above the image.
+        fhdr = tk.Frame(sidebar, bg=BG_SIDEBAR)
+        fhdr.pack(fill=tk.X, padx=8, pady=(10, 4))
+        tk.Label(fhdr, text="FOLDERS", bg=BG_SIDEBAR, fg=TEXT_MUTED,
+                 font=("Helvetica", 9, "bold")).pack(side=tk.LEFT)
+
+        self.preload_btn = self._btn(fhdr, "", self.toggle_preload,
+                                     bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=8)
+        self.preload_btn.pack(side=tk.RIGHT)
+        self._shortcut_btns["preload"] = (self.preload_btn, "")
+
+        self.cache_lbl = tk.Label(sidebar, text="", bg=BG_SIDEBAR, fg=TEXT_MUTED,
+                                  font=("Helvetica", 8))
+        self.cache_lbl.pack(anchor=tk.W, padx=10)
 
         # Listbox, with its own frame so a horizontal bar can sit beneath it
         lf_outer = tk.Frame(sidebar, bg=BG_SIDEBAR)
@@ -1914,15 +1971,6 @@ class VisManager:
         zbar.pack(fill=tk.X)
         self._zb_flow = zbar
 
-        self.preload_btn = self._btn(zbar, "", self.toggle_preload,
-                                     bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=8)
-        zbar.add(self.preload_btn, "left")
-        self._shortcut_btns["preload"] = (self.preload_btn, "")
-
-        self.cache_lbl = tk.Label(zbar, text="", bg=BG_DARK, fg=TEXT_MUTED,
-                                  font=("Helvetica", 8))
-        zbar.add(self.cache_lbl, "left")
-
         self.zoom_hint = tk.Label(
             zbar, text="scroll to zoom  \u2022  drag to pan  \u2022  "
                        "double-click toggles fit / 1:1",
@@ -1977,7 +2025,7 @@ class VisManager:
         scroller.pack(fill=tk.BOTH, expand=True)
         self._vtb_scroll = scroller
 
-        tb = tk.Frame(scroller.body, bg=BG_SIDEBAR, padx=4, pady=4)
+        tb = tk.Frame(scroller.body, bg=BG_SIDEBAR, padx=7, pady=6)
         tb.pack(fill=tk.BOTH, expand=True)
         self._vtb_body = tb
 
@@ -2003,7 +2051,7 @@ class VisManager:
                 else:
                     b = self._btn(row, val, cmd, bg=BTN_NAV,
                                   hover=BTN_NAV_HOV, font_size=8, width=3)
-                b.pack(side=tk.LEFT, padx=1)
+                b.pack(side=tk.LEFT, padx=3)
                 out.append(b)
             return out
 
@@ -2040,7 +2088,7 @@ class VisManager:
         sep2.pack(fill=tk.X, pady=4)
         self._vtb_optional.append((sep2, {"fill": tk.X, "pady": 4}))
         self.fs_btn = self._btn(tb, "", self.toggle_fullscreen,
-                                image=icon("expand"),
+                                image=icon("corners"),
                                 bg=BTN_KEYS, hover=BTN_KEYS_HOV)
         self.fs_btn.pack(pady=(2, 0))
         self._shortcut_btns["fullscreen"] = (self.fs_btn, "")
@@ -2111,15 +2159,16 @@ class VisManager:
     # ── Bottom action bar ────────────────────────────────────────────────────
     def _build_action_bar(self, viewer):
         """
-        Two compact rows, per the sketched layout:
+        The marking controls, laid out in a grid that reflows with width.
 
-            [<<]   KEEP   DELETE   [>>]
-            [ <]   NOTE   FLAG     [ >]
+        Wide  →  one row:   [<<] [<] KEEP DELETE Note Flag [>] [>>]
+        Narrow →  two rows: [<<] KEEP DELETE [>>]
+                            [ <] Note Flag   [ >]
 
-        Stacking the paired controls halves the width the bar needs, so it
-        keeps its shape on narrow windows instead of wrapping or colliding.
+        The single row is worth having: it is one button-height shorter, and
+        that height goes straight to the image.
         """
-        self._nav = nav = tk.Frame(viewer, bg=BG_MID, pady=8)
+        self._nav = nav = tk.Frame(viewer, bg=BG_MID, pady=6)
         nav.pack(side=tk.BOTTOM, fill=tk.X)
 
         self.img_name_lbl = tk.Label(nav, text="", bg=BG_MID, fg=TEXT_PRIMARY,
@@ -2134,47 +2183,42 @@ class VisManager:
         grid.pack(pady=(8, 2))
         self._actions_grid = grid
 
-        b_pf = self._btn(grid, GLYPHS["prev2"], self.prev_folder,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        b_pf.grid(row=0, column=0, padx=(0, 10), pady=2, sticky="ew")
-        self._shortcut_btns["prev_folder"] = (b_pf, GLYPHS["prev2"])
+        mk = self._btn
+        self._nav_btns = {}
 
-        b_pi = self._btn(grid, GLYPHS["prev"], self.prev_image,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        b_pi.grid(row=1, column=0, padx=(0, 10), pady=2, sticky="ew")
+        b_pf = mk(grid, GLYPHS["prev2"], self.prev_folder,
+                  bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
+        self._shortcut_btns["prev_folder"] = (b_pf, GLYPHS["prev2"])
+        b_pi = mk(grid, GLYPHS["prev"], self.prev_image,
+                  bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
         self._shortcut_btns["prev_image"] = (b_pi, GLYPHS["prev"])
 
-        self.keep_btn = self._btn(grid, f"{GLYPHS['keep']}  KEEP", self.act_keep,
-                                  bg=BTN_KEEP, hover=BTN_KEEP_HOV, width=12)
-        self.keep_btn.grid(row=0, column=1, padx=3, pady=2, sticky="ew")
+        self.keep_btn = mk(grid, f"{GLYPHS['keep']}  KEEP", self.act_keep,
+                           bg=BTN_KEEP, hover=BTN_KEEP_HOV, width=12)
         self._shortcut_btns["keep"] = (self.keep_btn, f"{GLYPHS['keep']}  KEEP")
-
-        self.del_btn = self._btn(grid, f"{GLYPHS['delete']}  DELETE",
-                                 self.act_delete,
-                                 bg=BTN_DEL, hover=BTN_DEL_HOV, width=12)
-        self.del_btn.grid(row=0, column=2, padx=3, pady=2, sticky="ew")
+        self.del_btn = mk(grid, f"{GLYPHS['delete']}  DELETE", self.act_delete,
+                          bg=BTN_DEL, hover=BTN_DEL_HOV, width=12)
         self._shortcut_btns["delete"] = (self.del_btn,
                                          f"{GLYPHS['delete']}  DELETE")
-
-        self.note_btn = self._btn(grid, "Note", self.edit_note,
-                                  image=icon("edit-document"),
-                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
-        self.note_btn.grid(row=1, column=1, padx=3, pady=2, sticky="ew")
-
-        self.flag_btn = self._btn(grid, "Flag", self.toggle_flag,
-                                  bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
-        self.flag_btn.grid(row=1, column=2, padx=3, pady=2, sticky="ew")
+        self.note_btn = mk(grid, "Note", self.edit_note,
+                           image=icon("edit-document"),
+                           bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
+        self.flag_btn = mk(grid, "Flag", self.toggle_flag, image=icon("flag"),
+                           bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
         self._shortcut_btns["flag"] = (self.flag_btn, "")
 
-        b_nf = self._btn(grid, GLYPHS["next2"], self.next_folder,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        b_nf.grid(row=0, column=3, padx=(10, 0), pady=2, sticky="ew")
+        b_ni = mk(grid, GLYPHS["next"], self.next_image,
+                  bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
+        self._shortcut_btns["next_image"] = (b_ni, GLYPHS["next"])
+        b_nf = mk(grid, GLYPHS["next2"], self.next_folder,
+                  bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
         self._shortcut_btns["next_folder"] = (b_nf, GLYPHS["next2"])
 
-        b_ni = self._btn(grid, GLYPHS["next"], self.next_image,
-                         bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        b_ni.grid(row=1, column=3, padx=(10, 0), pady=2, sticky="ew")
-        self._shortcut_btns["next_image"] = (b_ni, GLYPHS["next"])
+        self._nav_btns = dict(pf=b_pf, pi=b_pi, keep=self.keep_btn,
+                              dele=self.del_btn, note=self.note_btn,
+                              flag=self.flag_btn, ni=b_ni, nf=b_nf)
+        self._action_rows = None
+        self._layout_actions(one_row=True)
 
         self.note_lbl = tk.Label(nav, text="", bg=BG_MID, fg=FLAG_TEXT,
                                  font=("Helvetica", 9))
@@ -2184,15 +2228,44 @@ class VisManager:
                                   font=("Helvetica", 11, "bold"))
         self.state_lbl.pack()
 
-        self.nav_mode_btn = self._btn(
-            nav, "", self.toggle_nav_mode,
-            bg=BTN_KEYS, hover=BTN_KEYS_HOV, font_size=8,
-        )
-        self.nav_mode_btn.pack(pady=(4, 0))
+        self.nav_mode_btn = self._btn(nav, "", self.toggle_nav_mode,
+                                      bg=BTN_KEYS, hover=BTN_KEYS_HOV,
+                                      font_size=8)
+        self.nav_mode_btn.pack(pady=(5, 0))
         self._shortcut_btns["nav_mode"] = (self.nav_mode_btn, "")
-        self._refresh_nav_mode_btn()
-        self._refresh_preload_btn()
-        self._refresh_note_ui()
+
+    # Generous gaps so the groups read as groups rather than one long run
+    GAP_GROUP = 18
+    GAP_BTN = 5
+
+    def _layout_actions(self, one_row):
+        """(Re)place the marking buttons in one row or two."""
+        if self._action_rows == one_row:
+            return
+        self._action_rows = one_row
+        b = self._nav_btns
+        for w in b.values():
+            w.grid_forget()
+
+        G, P = self.GAP_GROUP, self.GAP_BTN
+        if one_row:
+            order = [("pf", (0, G, P)), ("pi", (1, P, G)),
+                     ("keep", (2, P, P)), ("dele", (3, P, P)),
+                     ("note", (4, P, P)), ("flag", (5, P, G)),
+                     ("ni", (6, G, P)), ("nf", (7, P, G))]
+            for key, (col, lpad, rpad) in order:
+                b[key].grid(row=0, column=col, padx=(lpad, rpad), pady=3,
+                            sticky="ew")
+        else:
+            cells = [("pf", 0, 0), ("pi", 1, 0),
+                     ("keep", 0, 1), ("dele", 0, 2),
+                     ("note", 1, 1), ("flag", 1, 2),
+                     ("nf", 0, 3), ("ni", 1, 3)]
+            for key, row, col in cells:
+                lpad = G if col == 1 else P
+                rpad = G if col == 2 else P
+                b[key].grid(row=row, column=col, padx=(lpad, rpad), pady=3,
+                            sticky="ew")
 
     # ── Status bar ───────────────────────────────────────────────────────────
     def _build_statusbar(self):
@@ -2283,15 +2356,34 @@ class VisManager:
                 except Exception:
                     pass
 
+    def _decide_action_rows(self):
+        """
+        Use one row whenever the buttons genuinely fit.
+
+        Measuring beats a fixed breakpoint here: the button widths depend on
+        the shortcut hints printed on them, which the user can rebind to
+        anything from "K" to "Ctrl+Shift+F12".
+        """
+        grid = getattr(self, "_actions_grid", None)
+        if grid is None or not self._nav_btns:
+            return
+        avail = self._viewer.winfo_width()
+        if avail <= 1:
+            return
+        need = sum(w.winfo_reqwidth() for w in self._nav_btns.values())
+        need += self.GAP_GROUP * 4 + self.GAP_BTN * 10
+        self._layout_actions(one_row=need <= avail - 24)
+
     def _on_root_configure(self, event):
         if event.widget is self.root:
             self._apply_responsive(event.width)
+            self._decide_action_rows()
 
     def _refresh_shortcut_labels(self):
         """Append the current key to each button's label, e.g. '✓ KEEP [K]'."""
         compact = getattr(self, "_compact", False)
         compact_base = {
-            "open_dir": f"{GLYPHS['open']}  Open",
+            "open_dir": "Open",
             "process":  f"{GLYPHS['process']}  Process",
         }
         for action_id, (btn, base_text) in self._shortcut_btns.items():
@@ -2308,6 +2400,7 @@ class VisManager:
         self._refresh_preload_btn()
         self._refresh_note_ui()
         self._reflow_bars()
+        self._decide_action_rows()
 
         # Status bar hint line
         if hasattr(self, "status_lbl"):
@@ -2398,46 +2491,74 @@ class VisManager:
                                     font=("Helvetica", 10, "bold"))
         flow.add(self.fs_name_lbl, "left")
 
+        def keyed(parent, action, **btn_kw):
+            """
+            Build a button with its shortcut printed underneath.
+
+            The button is created directly inside the caption cell. Creating
+            it against the outer frame and re-parenting with pack(in_=...)
+            left the buttons unrendered, with only the captions visible.
+            """
+            cell = tk.Frame(parent, bg=BG_MID)
+            w = self._btn(cell, **btn_kw)
+            w.pack()
+            key = self.bindings.get(action) if action else None
+            tk.Label(cell, text=display_binding(key) if key else " ",
+                     bg=BG_MID, fg=TEXT_MUTED,
+                     font=("Helvetica", 7, "bold")).pack(pady=(1, 0))
+            return cell, w
+
         nav = tk.Frame(flow, bg=BG_MID)
-        for txt, cmd in ((GLYPHS["prev"], self.prev_image),
-                         (GLYPHS["next"], self.next_image)):
-            self._btn(nav, txt, cmd, bg=BTN_NAV, hover=BTN_NAV_HOV,
-                      font_size=9).pack(side=tk.LEFT, padx=2)
+        for txt, cmd, act in ((GLYPHS["prev"], self.prev_image, "prev_image"),
+                              (GLYPHS["next"], self.next_image, "next_image")):
+            cell, _ = keyed(nav, act, text=txt, command=cmd,
+                            bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+            cell.pack(side=tk.LEFT, padx=4)
         flow.add(nav, "left")
 
         mark = tk.Frame(flow, bg=BG_MID)
-        self.fs_keep_btn = self._btn(mark, GLYPHS["keep"], self.act_keep,
-                                     bg=BTN_KEEP, hover=BTN_KEEP_HOV, font_size=9)
-        self.fs_keep_btn.pack(side=tk.LEFT, padx=2)
-        self.fs_del_btn = self._btn(mark, GLYPHS["delete"], self.act_delete,
-                                    bg=BTN_DEL, hover=BTN_DEL_HOV, font_size=9)
-        self.fs_del_btn.pack(side=tk.LEFT, padx=2)
-        self.fs_flag_btn = self._btn(mark, GLYPHS["flag_off"], self.toggle_flag,
-                                     bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-        self.fs_flag_btn.pack(side=tk.LEFT, padx=2)
+        cell, self.fs_keep_btn = keyed(mark, "keep", text=GLYPHS["keep"],
+                                       command=self.act_keep, bg=BTN_KEEP,
+                                       hover=BTN_KEEP_HOV, font_size=9)
+        cell.pack(side=tk.LEFT, padx=4)
+        cell, self.fs_del_btn = keyed(mark, "delete", text=GLYPHS["delete"],
+                                      command=self.act_delete, bg=BTN_DEL,
+                                      hover=BTN_DEL_HOV, font_size=9)
+        cell.pack(side=tk.LEFT, padx=4)
+        cell, self.fs_flag_btn = keyed(mark, "flag", text="",
+                                       command=self.toggle_flag,
+                                       image=icon("flag"), bg=BTN_NAV,
+                                       hover=BTN_NAV_HOV, font_size=9)
+        cell.pack(side=tk.LEFT, padx=4)
         flow.add(mark, "left")
 
         # View operations — the reason fullscreen was awkward before
         view = tk.Frame(flow, bg=BG_MID)
-        for ic, cmd in (("undo", self.rotate_ccw), ("redo", self.rotate_cw),
-                        ("flip-horizontal", self.flip_horizontal),
-                        ("flip-vertical", self.flip_vertical)):
-            self._btn(view, "", cmd, image=icon(ic), bg=BTN_NAV,
-                      hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
+        for ic, cmd, act in (("undo", self.rotate_ccw, "rot_ccw"),
+                             ("redo", self.rotate_cw, "rot_cw"),
+                             ("flip-horizontal", self.flip_horizontal, "flip_h"),
+                             ("flip-vertical", self.flip_vertical, "flip_v")):
+            cell, _ = keyed(view, act, text="", command=cmd, image=icon(ic),
+                            bg=BTN_NAV, hover=BTN_NAV_HOV)
+            cell.pack(side=tk.LEFT, padx=4)
         flow.add(view, "left")
 
         zoom = tk.Frame(flow, bg=BG_MID)
-        self._btn(zoom, "", self.zoom_out, image=icon("collapse"),
-                  bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
+        cell, _ = keyed(zoom, "zoom_out", text="", command=self.zoom_out,
+                        image=icon("collapse"), bg=BTN_NAV, hover=BTN_NAV_HOV)
+        cell.pack(side=tk.LEFT, padx=4)
         self.fs_zoom_lbl = tk.Label(zoom, text="Fit", bg=BG_MID, fg=TEXT_PRIMARY,
                                     font=("Helvetica", 9, "bold"), width=6)
-        self.fs_zoom_lbl.pack(side=tk.LEFT, padx=2)
-        self._btn(zoom, "", self.zoom_in, image=icon("expand"),
-                  bg=BTN_NAV, hover=BTN_NAV_HOV).pack(side=tk.LEFT, padx=2)
-        self._btn(zoom, "Fit", self.zoom_fit, bg=BTN_NAV, hover=BTN_NAV_HOV,
-                  font_size=9).pack(side=tk.LEFT, padx=2)
-        self._btn(zoom, "1:1", self.zoom_actual, bg=BTN_NAV, hover=BTN_NAV_HOV,
-                  font_size=9).pack(side=tk.LEFT, padx=2)
+        self.fs_zoom_lbl.pack(side=tk.LEFT, padx=4)
+        cell, _ = keyed(zoom, "zoom_in", text="", command=self.zoom_in,
+                        image=icon("expand"), bg=BTN_NAV, hover=BTN_NAV_HOV)
+        cell.pack(side=tk.LEFT, padx=4)
+        cell, _ = keyed(zoom, "zoom_fit", text="Fit", command=self.zoom_fit,
+                        bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+        cell.pack(side=tk.LEFT, padx=4)
+        cell, _ = keyed(zoom, "zoom_100", text="1:1", command=self.zoom_actual,
+                        bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
+        cell.pack(side=tk.LEFT, padx=4)
         flow.add(zoom, "left")
 
         self.fs_size_btn = self._btn(flow, "", self.toggle_fs_size,
@@ -2467,7 +2588,6 @@ class VisManager:
         if hasattr(self, "fs_flag_btn"):
             flagged = bool(fp) and fp in self.notes
             self.fs_flag_btn.configure(
-                text=GLYPHS["flag_on"] if flagged else GLYPHS["flag_off"],
                 bg=FLAG_ON if flagged else BTN_NAV,
                 hover=FLAG_ON_HOV if flagged else BTN_NAV_HOV)
         if hasattr(self, "fs_zoom_lbl"):
@@ -2683,8 +2803,7 @@ class VisManager:
 
         if hasattr(self, "flag_btn"):
             fkey = self.bindings.get("flag")
-            flabel = (f"{GLYPHS['flag_on']}  Flagged" if flagged
-                      else f"{GLYPHS['flag_off']}  Flag")
+            flabel = "Flagged" if flagged else "Flag"
             self.flag_btn.configure(
                 text=f"{flabel}  [{display_binding(fkey)}]" if fkey else flabel,
                 bg=FLAG_ON if flagged else BTN_NAV,
@@ -2968,7 +3087,7 @@ class VisManager:
         if not hasattr(self, "preload_btn"):
             return
         on = self.settings.get("preload_mode") == "lazy"
-        base = ("Load: one at a time" if on else "Load: whole folder")
+        base = ("One at a time" if on else "Whole folder")
         self._shortcut_btns["preload"] = (self.preload_btn, base)
         key = self.bindings.get("preload")
         self.preload_btn.configure(
