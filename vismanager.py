@@ -25,6 +25,15 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageDraw, ImageTk
 
+# Optional 3D cube support. Kept optional because VTK is a ~500 MB dependency;
+# without it VisManager behaves exactly as before, minus .cube files.
+try:
+    import cube_viewer
+    CUBE_SUPPORT = cube_viewer.VTK_AVAILABLE
+except Exception:
+    cube_viewer = None
+    CUBE_SUPPORT = False
+
 # ─── Branding assets (embedded) ───────────────────────────────────────────────
 # Base64-embedded so PyInstaller has no data files to lose. A packaged build
 # is therefore never missing its icon or wordmark.
@@ -577,6 +586,8 @@ ACTIONS = [
     ("rot_reset",   "Reset orientation",     "<Key-r>",             "reset_transform"),
     ("fullscreen",  "Fullscreen image",      "<Key-F11>",           "toggle_fullscreen"),
     ("help",        "Help",                  "<Key-F1>",            "open_help"),
+    ("cube_setup",  "Isosurface settings",   "<Key-i>",             "open_cube_settings"),
+    ("cube_export", "Export 3D view",        "<Control-Key-3>",     "open_cube_export"),
     ("zoom_in",     "Zoom in",               "<Key-equal>",         "zoom_in"),
     ("zoom_out",    "Zoom out",              "<Key-minus>",         "zoom_out"),
     ("zoom_fit",    "Zoom to fit",           "<Key-0>",             "zoom_fit"),
@@ -716,6 +727,10 @@ def display_binding(binding):
 DEFAULT_SETTINGS = {
     "nav_mode":      "continuous",   # "continuous" | "wrap"
     "fullscreen_mode": "screen",     # "screen" (whole display) | "window"
+    "cube_export_format": "png",
+    "cube_export_scale": 2,
+    "cube_export_white": True,
+    "cube_export_transparent": False,
     "preload_mode":  "lazy",         # "lazy" (one at a time) | "folder" (preload)
     "pdf_mode":      "per_image",    # "per_image" | "per_folder" | "combined"
     "delete_source": False,          # legacy global fallback
@@ -738,6 +753,7 @@ FILE_TYPES = [
     ("ico",  "ICO",  {".ico"}),
     ("dds",  "DDS",  {".dds"}),
     ("pdf",  "PDF",  {".pdf"}),
+    ("cube", "Cube", {".cube", ".cub"}),
 ]
 
 TYPE_LABELS = {tid: lbl for tid, lbl, _e in FILE_TYPES}
@@ -747,7 +763,7 @@ EXT_TO_TYPE = {e: tid for tid, _l, exts in FILE_TYPES for e in exts}
 ALL_EXTS    = set(EXT_TO_TYPE)
 
 # PDFs are already PDFs — they're never re-converted, only filtered/deleted.
-NON_CONVERTIBLE = {"pdf"}
+NON_CONVERTIBLE = {"pdf", "cube"}
 
 DEFAULT_SETTINGS["enabled_types"]       = list(ALL_TYPE_IDS)
 DEFAULT_SETTINGS["delete_marked_types"] = {t: True  for t in ALL_TYPE_IDS}
@@ -1712,6 +1728,9 @@ class VisManager:
         self.notes           = {}           # {filepath: note text ("" = flag only)}
         self.transforms      = {}           # {filepath: (rot 0-3, mirror bool)}
         self.notes_exported  = True         # False once notes change unexported
+        self._scene          = None         # active CubeScene, if any
+        self._scene_path     = None
+        self._scene_error    = ""
         self.cur_folder_idx  = 0
         self.cur_image_idx   = 0
         self._photo          = None         # ImageTk ref (prevents GC)
@@ -2118,6 +2137,18 @@ class VisManager:
                                 bg=BTN_KEYS, hover=BTN_KEYS_HOV)
         self.fs_btn.pack(pady=(5, 3))
         self._shortcut_btns["fullscreen"] = (self.fs_btn, "")
+
+        # 3D section — packed and unpacked as cube files come and go
+        self._cube_sec = tk.Frame(tb, bg=BG_SIDEBAR)
+        tk.Frame(self._cube_sec, bg=BORDER, height=1).pack(fill=tk.X, pady=6)
+        tk.Label(self._cube_sec, text="3D", bg=BG_SIDEBAR, fg=TEXT_MUTED,
+                 font=("Helvetica", 7, "bold")).pack(pady=(2, 4))
+        self._btn(self._cube_sec, "Iso", self.open_cube_settings,
+                  bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=8).pack(fill=tk.X, pady=2)
+        self._btn(self._cube_sec, "Export", self.open_cube_export,
+                  bg="#6d28d9", hover="#7c3aed", font_size=8).pack(fill=tk.X, pady=2)
+        self._btn(self._cube_sec, "Recenter", self.cube_reset,
+                  bg=BTN_INVERT, hover="#606878", font_size=8).pack(fill=tk.X, pady=2)
 
         self._vtb_compact = False
         scroller.bind_wheel_recursive()
@@ -2926,6 +2957,79 @@ class VisManager:
 
 
 
+    # ─── Cube (3D) support ────────────────────────────────────────────────────
+    def _cube_scene(self, path):
+        """
+        Get (or build) the 3D scene for a cube file.
+
+        One scene is kept at a time: each holds a VTK render window and the
+        triangulated isosurfaces, which is far too much memory to cache per
+        file across a directory of hundreds.
+        """
+        if not CUBE_SUPPORT:
+            return None
+        if getattr(self, "_scene_path", None) == path and self._scene is not None:
+            return self._scene
+        if self._scene is not None:
+            self._scene.close()
+            self._scene = None
+        try:
+            self._scene = cube_viewer.CubeScene(path, bg=self._cube_bg())
+            self._scene_path = path
+            self._scene_error = ""
+        except Exception as exc:
+            self._scene = None
+            self._scene_path = None
+            self._scene_error = str(exc)
+        return self._scene
+
+    def _cube_bg(self):
+        c = KEEP_BG if self.image_states.get(self._cur_file(), True) else DELETE_BG
+        return tuple(int(c[i:i + 2], 16) / 255 for i in (1, 3, 5))
+
+    def is_cube_view(self):
+        fp = self._cur_file()
+        return bool(fp) and type_of(fp) == "cube" and self._scene is not None
+
+    def _render_cube(self, fp):
+        """Render the current cube to a PIL image sized to the canvas."""
+        scene = self._cube_scene(fp)
+        if scene is None:
+            return None
+        cw, ch = self._canvas_size()
+        scene.renderer.SetBackground(*self._cube_bg())
+        try:
+            return scene.render(cw, ch)
+        except Exception as exc:
+            self._scene_error = str(exc)
+            return None
+
+    def cube_rotate(self, dx, dy):
+        if self.is_cube_view():
+            self._scene.rotate(dx, dy)
+            self._show_image(keep_zoom=True, recenter=True)
+
+    def cube_zoom(self, factor):
+        if self.is_cube_view():
+            self._scene.zoom(factor)
+            self._show_image(keep_zoom=True, recenter=True)
+
+    def cube_reset(self):
+        if self.is_cube_view():
+            self._scene.reset_camera()
+            self._show_image(keep_zoom=True, recenter=True)
+
+    def open_cube_export(self):
+        if self.is_cube_view():
+            CubeExportDialog(self, self._scene)
+        elif CUBE_SUPPORT:
+            messagebox.showinfo("Not a cube file",
+                                "Open a .cube file to use 3D export.")
+
+    def open_cube_settings(self):
+        if self.is_cube_view():
+            CubeSettingsDialog(self, self._scene)
+
     # ─── Orientation ──────────────────────────────────────────────────────────
     def get_transform(self, path):
         return self.transforms.get(path, (0, False))
@@ -2949,6 +3053,17 @@ class VisManager:
     def flip_horizontal(self):  self._apply_op("h")
     def flip_vertical(self):    self._apply_op("v")
     def reset_transform(self):  self._apply_op("reset")
+
+    def _refresh_cube_section(self):
+        """Show the 3D controls only when they apply."""
+        sec = getattr(self, "_cube_sec", None)
+        if sec is None:
+            return
+        want = self.is_cube_view()
+        if want and not sec.winfo_ismapped():
+            sec.pack(fill=tk.X)
+        elif not want and sec.winfo_ismapped():
+            sec.pack_forget()
 
     def _refresh_transform_ui(self):
         fp = self._cur_file()
@@ -3247,7 +3362,18 @@ class VisManager:
         if not fp:
             return
 
-        img, info = self._load_cached(fp)
+        if type_of(fp) == "cube":
+            # Volumetric data is rendered live rather than decoded once, so it
+            # bypasses the image cache entirely.
+            img = self._render_cube(fp)
+            if img is None:
+                self._src_img = None
+                self._draw_unloadable(fp, {"error": self._scene_error or
+                                           "Install VTK for .cube support"})
+                return
+            info = {"pages": None, "note": "", "error": ""}
+        else:
+            img, info = self._load_cached(fp)
         if img is None:
             self._src_img = None
             self._draw_unloadable(fp, info)
@@ -3270,6 +3396,7 @@ class VisManager:
         self._refresh_note_ui()
         self._refresh_transform_ui()
         self._refresh_fs_labels()
+        self._refresh_cube_section()
 
     # ─── Zoom / pan ───────────────────────────────────────────────────────────
     ZOOM_MIN, ZOOM_MAX = 0.1, 64.0        # multipliers on top of fit
@@ -3469,6 +3596,9 @@ class VisManager:
             return "break"
         # macOS reports small deltas, Windows multiples of 120
         steps = delta / 120.0 if abs(delta) >= 120 else (1 if delta > 0 else -1)
+        if self.is_cube_view():
+            self.cube_zoom(1.12 if steps > 0 else 1 / 1.12)
+            return "break"
         self._set_zoom(self._zoom * (self.ZOOM_STEP ** steps),
                        anchor=(event.x, event.y), interactive=True)
         return "break"
@@ -3485,12 +3615,24 @@ class VisManager:
         dx, dy = event.x - x0, event.y - y0
         if abs(dx) > 2 or abs(dy) > 2:
             self._panned = True
+        if self.is_cube_view():
+            # On a cube, dragging orbits the camera — panning a live render
+            # would just move a picture that is about to be redrawn anyway.
+            self._scene.rotate(event.x - x0, event.y - y0)
+            self._pan_from = (event.x, event.y, self._ox, self._oy)
+            if self._pan_job is None:
+                self._pan_job = self.root.after_idle(self._flush_cube_drag)
+            return
         self._ox, self._oy = ox0 + dx, oy0 + dy
         # Motion events arrive faster than we can redraw. Collapsing them
         # into one render per idle cycle keeps the drag tracking the cursor
         # instead of lagging behind a backlog of stale positions.
         if self._pan_job is None:
             self._pan_job = self.root.after_idle(self._flush_pan)
+
+    def _flush_cube_drag(self):
+        self._pan_job = None
+        self._show_image(keep_zoom=True, recenter=True)
 
     def _flush_pan(self):
         self._pan_job = None
@@ -4737,6 +4879,307 @@ class ShortcutsDialog(tk.Toplevel):
             pass
         if resume:
             self.app.resume_shortcuts()
+        self.destroy()
+
+
+# ─── Cube 3D dialogs ──────────────────────────────────────────────────────────
+class CubeSettingsDialog(tk.Toplevel):
+    """Isosurface controls for the current cube file."""
+
+    def __init__(self, app, scene):
+        super().__init__(app.root)
+        self.app, self.scene = app, scene
+        self._closed = False
+        app.suspend_shortcuts()
+
+        self.title("Isosurface")
+        self.configure(bg=BG_DARK)
+        self.transient(app.root)
+        self.resizable(False, False)
+        self._build()
+        fit_to_screen(self)
+        self.grab_set()
+        self.focus_force()
+        self.bind("<Escape>", lambda e: self._close())
+        self.protocol("WM_DELETE_WINDOW", self._close)
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=BG_MID, padx=18, pady=10)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="Isosurface", bg=BG_MID, fg=TEXT_PRIMARY,
+                 font=("Helvetica", 13, "bold")).pack(anchor=tk.W)
+        lo, hi = self.scene.data_range
+        tk.Label(hdr, text=f"{os.path.basename(self.scene.path)}   \u2022   "
+                           f"grid {'x'.join(str(d) for d in self.scene.dimensions)}"
+                           f"   \u2022   values {lo:.4f} to {hi:.4f}",
+                 bg=BG_MID, fg=TEXT_MUTED, font=("Helvetica", 8)).pack(anchor=tk.W)
+
+        body = tk.Frame(self, bg=BG_DARK, padx=18, pady=14)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(body, text="ISOVALUE", bg=BG_DARK, fg=TEXT_MUTED,
+                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W)
+        self.iso_lbl = tk.Label(body, text="", bg=BG_DARK, fg=FLAG_TEXT,
+                                font=("Helvetica", 11, "bold"))
+        self.iso_lbl.pack(anchor=tk.W)
+
+        top = max(self.scene.max_iso, 1e-6)
+        self.iso = tk.DoubleVar(value=self.scene.isovalue)
+        tk.Scale(body, from_=top * 0.002, to=top * 0.9, resolution=top / 500.0,
+                 orient=tk.HORIZONTAL, variable=self.iso, showvalue=False,
+                 length=300, bg=BG_DARK, fg=TEXT_PRIMARY, troughcolor=BG_MID,
+                 highlightthickness=0, bd=0, activebackground=ACCENT_BLUE,
+                 command=self._on_iso).pack(fill=tk.X, pady=(2, 10))
+
+        tk.Label(body, text="OPACITY", bg=BG_DARK, fg=TEXT_MUTED,
+                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W)
+        self.op = tk.DoubleVar(value=self.scene.opacity)
+        tk.Scale(body, from_=0.1, to=1.0, resolution=0.05,
+                 orient=tk.HORIZONTAL, variable=self.op, showvalue=False,
+                 length=300, bg=BG_DARK, fg=TEXT_PRIMARY, troughcolor=BG_MID,
+                 highlightthickness=0, bd=0, activebackground=ACCENT_BLUE,
+                 command=self._on_opacity).pack(fill=tk.X, pady=(2, 10))
+
+        for text, var_name, setter in (
+                ("Show atoms and bonds", "show_atoms", self.scene.set_show_atoms),
+                ("Show grid box", "show_box", self.scene.set_show_box),
+                ("Smooth surfaces", "smooth", self.scene.set_smooth)):
+            var = tk.BooleanVar(value=getattr(self.scene, var_name))
+            setattr(self, "v_" + var_name, var)
+            tk.Checkbutton(
+                body, text=text, variable=var,
+                command=lambda v=var, f=setter: (f(v.get()), self._refresh()),
+                bg=BG_DARK, fg=TEXT_PRIMARY, selectcolor=BG_MID,
+                activebackground=BG_DARK, activeforeground=TEXT_PRIMARY,
+                highlightthickness=0, bd=0, font=("Helvetica", 10),
+            ).pack(anchor=tk.W)
+
+        footer = tk.Frame(self, bg=BG_MID, padx=18, pady=10)
+        footer.pack(fill=tk.X)
+        FlatButton(footer, text="Reset view", command=self._reset,
+                   bg=BTN_INVERT, hover="#606878", font_size=9).pack(side=tk.LEFT)
+        FlatButton(footer, text="Close", command=self._close,
+                   bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10,
+                   width=8).pack(side=tk.RIGHT)
+        self._update_iso_label()
+
+    def _update_iso_label(self):
+        self.iso_lbl.config(text=f"\u00b1 {self.iso.get():.5f}")
+
+    def _on_iso(self, _v=None):
+        self._update_iso_label()
+        if getattr(self, "_iso_job", None):
+            self.after_cancel(self._iso_job)
+        # Rebuilding marching cubes on every pixel of slider travel would
+        # stutter; one rebuild once the slider settles is enough.
+        self._iso_job = self.after(120, self._apply_iso)
+
+    def _apply_iso(self):
+        self._iso_job = None
+        self.scene.set_isovalue(self.iso.get())
+        self._refresh()
+
+    def _on_opacity(self, _v=None):
+        self.scene.set_opacity(self.op.get())
+        self._refresh()
+
+    def _reset(self):
+        self.scene.reset_camera()
+        self._refresh()
+
+    def _refresh(self):
+        self.app._show_image(keep_zoom=True, recenter=True)
+
+    def _close(self):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.app.resume_shortcuts()
+        self.destroy()
+
+
+class CubeExportDialog(tk.Toplevel):
+    """Export the current 3D view as raster or vector, at a chosen scale."""
+
+    def __init__(self, app, scene):
+        super().__init__(app.root)
+        self.app, self.scene = app, scene
+        self._closed = False
+        app.suspend_shortcuts()
+
+        self.title("Export 3D View")
+        self.configure(bg=BG_DARK)
+        self.transient(app.root)
+        self.resizable(False, False)
+
+        s = app.settings
+        self.fmt = tk.StringVar(value=s.get("cube_export_format", "png"))
+        self.scale = tk.IntVar(value=s.get("cube_export_scale", 2))
+        self.white = tk.BooleanVar(value=s.get("cube_export_white", True))
+        self.transparent = tk.BooleanVar(
+            value=s.get("cube_export_transparent", False))
+
+        self._build()
+        fit_to_screen(self)
+        self.grab_set()
+        self.focus_force()
+        self.bind("<Escape>", lambda e: self._close())
+        self.protocol("WM_DELETE_WINDOW", self._close)
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=BG_MID, padx=20, pady=12)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="Export 3D View", bg=BG_MID, fg=TEXT_PRIMARY,
+                 font=("Helvetica", 14, "bold")).pack(anchor=tk.W)
+        tk.Label(hdr, text=os.path.basename(self.scene.path), bg=BG_MID,
+                 fg=TEXT_MUTED, font=("Helvetica", 9)).pack(anchor=tk.W)
+
+        body = tk.Frame(self, bg=BG_DARK, padx=20, pady=14)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(body, text="FORMAT", bg=BG_DARK, fg=TEXT_MUTED,
+                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W, pady=(0, 4))
+
+        for key, label, kind in cube_viewer.EXPORT_FORMATS:
+            row = tk.Frame(body, bg=BG_DARK)
+            row.pack(fill=tk.X, anchor=tk.W)
+            tk.Radiobutton(
+                row, text=label, value=key, variable=self.fmt,
+                command=self._sync, bg=BG_DARK, fg=TEXT_PRIMARY,
+                selectcolor=BG_MID, activebackground=BG_DARK,
+                activeforeground=TEXT_PRIMARY, highlightthickness=0, bd=0,
+                font=("Helvetica", 10), anchor=tk.W,
+            ).pack(side=tk.LEFT)
+            note = ("resolution-independent" if kind == "vector"
+                    else "uses the multiplier below")
+            tk.Label(row, text=note, bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 8)).pack(side=tk.LEFT, padx=(8, 0))
+
+        tk.Frame(body, bg=BORDER, height=1).pack(fill=tk.X, pady=12)
+
+        self.res_head = tk.Label(body, text="RESOLUTION", bg=BG_DARK,
+                                 fg=TEXT_MUTED, font=("Helvetica", 9, "bold"))
+        self.res_head.pack(anchor=tk.W, pady=(0, 4))
+
+        self.scale_row = tk.Frame(body, bg=BG_DARK)
+        self.scale_row.pack(fill=tk.X)
+        self._scale_btns = {}
+        for mult in cube_viewer.SCALE_CHOICES:
+            b = FlatButton(self.scale_row, text=f"{mult}x",
+                           command=lambda m=mult: self._set_scale(m),
+                           bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9, width=4)
+            b.pack(side=tk.LEFT, padx=3)
+            self._scale_btns[mult] = b
+
+        self.dims_lbl = tk.Label(body, text="", bg=BG_DARK, fg=FLAG_TEXT,
+                                 font=("Helvetica", 10, "bold"))
+        self.dims_lbl.pack(anchor=tk.W, pady=(8, 0))
+
+        self.opt_frame = tk.Frame(body, bg=BG_DARK)
+        self.opt_frame.pack(fill=tk.X, pady=(10, 0))
+        tk.Checkbutton(self.opt_frame, text="White background (for publication)",
+                       variable=self.white, bg=BG_DARK, fg=TEXT_PRIMARY,
+                       selectcolor=BG_MID, activebackground=BG_DARK,
+                       activeforeground=TEXT_PRIMARY, highlightthickness=0,
+                       bd=0, font=("Helvetica", 10),
+                       command=self._sync).pack(anchor=tk.W)
+        self.trans_cb = tk.Checkbutton(
+            self.opt_frame, text="Transparent background (PNG / TIFF only)",
+            variable=self.transparent, bg=BG_DARK, fg=TEXT_PRIMARY,
+            selectcolor=BG_MID, activebackground=BG_DARK,
+            activeforeground=TEXT_PRIMARY, highlightthickness=0, bd=0,
+            font=("Helvetica", 10), command=self._sync)
+        self.trans_cb.pack(anchor=tk.W)
+
+        footer = tk.Frame(self, bg=BG_MID, padx=20, pady=10)
+        footer.pack(fill=tk.X)
+        FlatButton(footer, text="Export", command=self._export,
+                   bg=BTN_PROCESS, hover=BTN_PROCESS_HOV, font_size=10,
+                   width=9).pack(side=tk.RIGHT, padx=(6, 0))
+        FlatButton(footer, text="Cancel", command=self._close,
+                   bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10,
+                   width=8).pack(side=tk.RIGHT)
+        self._set_scale(self.scale.get())
+
+    def _set_scale(self, mult):
+        self.scale.set(mult)
+        self._sync()
+
+    def _sync(self):
+        """Keep the controls consistent with the chosen format."""
+        vector = cube_viewer.FORMAT_KIND[self.fmt.get()] == "vector"
+        cw, ch = self.app._canvas_size()
+
+        for mult, b in self._scale_btns.items():
+            chosen = (mult == self.scale.get()) and not vector
+            b.configure(bg=BTN_KEYS if chosen else BTN_NAV,
+                        hover=BTN_KEYS_HOV if chosen else BTN_NAV_HOV,
+                        state=tk.DISABLED if vector else tk.NORMAL)
+
+        if vector:
+            self.res_head.config(fg="#4a4a66")
+            self.dims_lbl.config(
+                text="Vector output — scales to any size without loss",
+                fg=TEXT_MUTED)
+        else:
+            self.res_head.config(fg=TEXT_MUTED)
+            m = self.scale.get()
+            mp = (cw * m) * (ch * m) / 1e6
+            self.dims_lbl.config(text=f"{cw * m} x {ch * m} px   ({mp:.1f} MP)",
+                                 fg=FLAG_TEXT)
+
+        can_trans = (not vector and self.fmt.get() in ("png", "tiff")
+                     and not self.white.get())
+        self.trans_cb.configure(state=tk.NORMAL if can_trans else tk.DISABLED,
+                                fg=TEXT_PRIMARY if can_trans else "#4a4a66")
+
+    def _export(self):
+        fmt = self.fmt.get()
+        default = os.path.splitext(os.path.basename(self.scene.path))[0]
+        path = filedialog.asksaveasfilename(
+            title="Export 3D view",
+            defaultextension="." + fmt,
+            initialdir=os.path.dirname(self.scene.path),
+            initialfile=f"{default}.{fmt}",
+            filetypes=[(cube_viewer.FORMAT_LABEL[fmt], f"*.{fmt}"),
+                       ("All files", "*.*")])
+        if not path:
+            return
+        try:
+            info = self.scene.export(
+                path, fmt=fmt, scale=self.scale.get(),
+                transparent=self.transparent.get(),
+                white_background=self.white.get())
+        except Exception as exc:
+            messagebox.showerror("Export failed", f"{type(exc).__name__}: {exc}")
+            return
+
+        self.app.settings.update({
+            "cube_export_format": fmt,
+            "cube_export_scale": self.scale.get(),
+            "cube_export_white": self.white.get(),
+            "cube_export_transparent": self.transparent.get(),
+        })
+        save_config(self.app.bindings, self.app.settings)
+        size = os.path.getsize(path) / 1024
+        messagebox.showinfo("Exported",
+                            f"{os.path.basename(path)}\n\n{info}\n"
+                            f"{size:.0f} KB")
+        self._close()
+
+    def _close(self):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.app.resume_shortcuts()
         self.destroy()
 
 

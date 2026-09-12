@@ -34,6 +34,18 @@ every PDF this app produces) and unavailable for vector/text PDFs.
 
 INCLUDE_PDFIUM = True     # set False for a pure-Python, pypdf-only build
 
+# ── 3D cube support ───────────────────────────────────────────────────────
+# VTK is ~500 MB installed and takes the executable from roughly 44 MB to
+# well over 150 MB. It is EXCLUDED by default.
+#
+# Important: leaving this False is not merely a no-op. vismanager.py imports
+# cube_viewer, which imports vtk, so PyInstaller's analysis will happily pull
+# VTK into the bundle on any machine where it happens to be installed — an
+# accidental 175 MB build. The exclusion below is what prevents that.
+#
+# Set True (and `pip install vtk`) to ship a build that opens .cube files.
+INCLUDE_CUBE3D = False
+
 # ── Cross-compiling is not possible ───────────────────────────────────────
 # PyInstaller bundles the interpreter and libraries of the HOST platform:
 #   built on Windows -> PE .exe   (runs on Windows, and under Wine)
@@ -61,6 +73,7 @@ excludes = [
     "IPython", "jupyter", "notebook", "pytest",
 ]
 hiddenimports = [
+    "cube_viewer",          # optional module, imported inside a try/except
     # Pillow format plugins are imported dynamically by the codec registry,
     # so PyInstaller cannot see them. Without these, opening a .tga or .dds
     # raises "cannot identify image file" only in the packaged build.
@@ -123,6 +136,28 @@ elif os.path.exists("assets/vismanager.ico"):
     APP_ICON = "assets/vismanager.ico"
 else:
     APP_ICON = None
+
+# ── 3D cube support ───────────────────────────────────────────────────────
+if INCLUDE_CUBE3D:
+    try:
+        from PyInstaller.utils.hooks import collect_all
+        # vtkmodules resolves its submodules dynamically, so the static
+        # scanner misses most of them; collect_all pulls the package,
+        # its binaries and its metadata.
+        vtk_datas, vtk_binaries, vtk_hidden = collect_all("vtkmodules")
+        datas += vtk_datas
+        binaries += vtk_binaries
+        hiddenimports += vtk_hidden + ["vtk", "vtkmodules.all",
+                                       "vtkmodules.util.numpy_support"]
+        print(f"[spec] VTK collected: {len(vtk_binaries)} binaries "
+              f"({len(vtk_hidden)} modules) — expect a large executable")
+    except Exception as exc:
+        print(f"[spec] WARNING: could not collect VTK ({exc}); "
+              f"the build will have no .cube support")
+else:
+    # Keep VTK out even when it is installed on the build machine.
+    excludes += ["vtk", "vtkmodules"]
+    print("[spec] INCLUDE_CUBE3D=False — VTK excluded, .cube files unsupported")
 
 a = Analysis(
     ["vismanager.py"],

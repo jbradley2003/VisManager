@@ -78,6 +78,10 @@ only at build time.
 | Add / edit note | `N` | Toggle flag | `F` |
 | Export notes | `Ctrl+E` | Reset orientation | `R` |
 | Fullscreen | `F11` | Help | `F1` |
+
+Fullscreen keeps a compact control strip with navigation, Keep/Delete/Flag,
+rotate, flip and zoom, plus a **Screen size / Window size** toggle — fill the
+whole display, or just the current window.
 | Rotate left / right | `[` / `]` | Flip horiz / vert | `H` / `V` |
 
 **Every shortcut is rebindable** — click ⌨ Shortcuts, click a key, press the
@@ -124,6 +128,30 @@ not in your user profile, with paths kept relative — move or copy the asset
 folder and the annotations travel with it.
 
 ---
+
+## 3D cube files (optional)
+
+Install VTK to open Gaussian `.cube` files directly:
+
+```bash
+pip install vtk
+```
+
+Cube files then render as interactive isosurfaces — drag to orbit, scroll to
+zoom. `I` opens isosurface settings (isovalue, opacity, atoms/bonds, grid box,
+smoothing); `Ctrl+3` opens **Export 3D View**:
+
+| Output | Resolution |
+|---|---|
+| PNG, TIFF, JPEG | 1x – 8x multiplier on the view size |
+| SVG, PDF, EPS | true vector, resolution-independent |
+
+There is a white-background option for publication figures and transparent
+background for PNG/TIFF. Keep/Delete, flags and notes work on cube files just
+like images.
+
+Without VTK the app runs unchanged and simply ignores `.cube` files — worth
+knowing because VTK is a ~500 MB dependency.
 
 ## PDF previews
 

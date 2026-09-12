@@ -22,3 +22,13 @@ pyinstaller>=6.0.0
 # vismanager.spec collects it explicitly. Uncomment to enable:
 #
 # pypdfium2>=4.0.0
+
+# ── Optional: 3D cube file viewer ─────────────────────────────────────────
+# Adds interactive .cube support (isosurfaces, rotate/zoom, and export to
+# PNG/TIFF/JPEG at 1x-8x, or SVG/PDF/EPS as true vector).
+#
+# VTK is ~500 MB installed and will enlarge a packaged build considerably.
+# VisManager imports it optionally: without it everything else works exactly
+# the same, minus .cube files. Uncomment to enable:
+#
+# vtk>=9.2

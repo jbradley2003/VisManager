@@ -140,6 +140,43 @@ build** — it works fine from source, which makes it a confusing bug to chase.
 
 ---
 
+## 3D cube support and build size
+
+`INCLUDE_CUBE3D` at the top of `vismanager.spec` controls whether VTK is
+bundled. It defaults to **False**.
+
+| Setting | Executable | `.cube` files |
+|---|---|---|
+| `INCLUDE_CUBE3D = False` | ~45 MB | not supported |
+| `INCLUDE_CUBE3D = True` | ~179 MB | interactive isosurfaces + export |
+
+**This flag matters even if you never touch it.** `vismanager.py` imports
+`cube_viewer`, which imports `vtk`, so PyInstaller's dependency scan will pull
+VTK into the bundle on any machine where VTK happens to be installed —
+producing a 175 MB executable by accident. The `excludes` entry added when the
+flag is False is what keeps that from happening.
+
+To build with 3D:
+
+```bash
+pip install vtk
+# set INCLUDE_CUBE3D = True in vismanager.spec
+python -m PyInstaller vismanager.spec --clean
+```
+
+The spec uses `collect_all("vtkmodules")` because VTK resolves its submodules
+at runtime; a plain build imports VTK successfully and then fails the moment
+it renders. Verified inside a frozen build: VTK loads, renders a cube, and
+writes vector output.
+
+### From GitHub Actions
+
+The workflow has a **3D cube support** checkbox on the Run workflow dialog.
+Leave it unticked for the small build; tick it to install VTK, flip the spec
+flag, and produce `VisManager-windows-3d`.
+
+---
+
 ## Branding assets
 
 `assets/vismanager.ico` is a 7-resolution Windows icon (16 → 256 px) generated
