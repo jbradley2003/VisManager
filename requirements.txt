@@ -13,10 +13,6 @@ Pillow>=10.0.0
 pypdf>=4.0.0
 pyinstaller>=6.0.0
 
-# tkinterdnd2 enables dragging files and folders onto the window. Without it
-# the app works normally and files are opened through the dialog.
-tkinterdnd2>=0.4.0
-
 # ── Optional: full PDF renderer ───────────────────────────────────────────
 # pypdfium2 rasterises any PDF, including vector and text-only documents.
 # pypdf alone can only pull out embedded images, which covers every PDF
@@ -36,10 +32,3 @@ tkinterdnd2>=0.4.0
 # the same, minus .cube files. Uncomment to enable:
 #
 # vtk>=9.2
-
-# ── Optional: generate cube files from quantum-chemistry output ───────────
-# pyscf converts molden files into HOMO/LUMO cubes. The .gbw and density
-# stages additionally need ORCA's orca_2mkl and orca_plot on PATH; those
-# ship with ORCA and cannot be pip-installed.
-#
-# pyscf>=2.3

@@ -140,33 +140,6 @@ build** — it works fine from source, which makes it a confusing bug to chase.
 
 ---
 
-## Running under Wine (OpenGL 3.2)
-
-VTK 9 needs OpenGL 3.2 or newer. Wine's OpenGL bridge exposes only 2.1 by
-default, so a 3D-enabled build reports:
-
-```
-Unable to find a valid OpenGL 3.2 or later implementation. (2.1 found)
-```
-
-VisManager now catches this and shows an explanatory card instead of crashing;
-everything except `.cube` files keeps working. To get 3D working under Wine,
-give it a software OpenGL:
-
-1. Download Mesa3D for Windows (the `mesa3d-*-release-msvc` package from
-   https://github.com/pal1000/mesa-dist-win/releases).
-2. Copy `x64/opengl32.dll` next to `VisManager.exe`.
-3. Optionally set `MESA_GL_VERSION_OVERRIDE=4.5` in the Wine environment.
-
-Wine loads the DLL sitting beside the executable in preference to its own, so
-VTK then sees a modern (software) OpenGL. Rendering is CPU-bound and slower
-than native, but usable.
-
-A native macOS build avoids the problem entirely — see the cross-compiling
-section above.
-
----
-
 ## 3D cube support and build size
 
 `INCLUDE_CUBE3D` at the top of `vismanager.spec` controls whether VTK is
