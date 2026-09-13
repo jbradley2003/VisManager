@@ -15,6 +15,7 @@ in the toolbar.  Settings persist to ~/.vismanager.json.
 """
 
 import os
+import re
 import sys
 import json
 import math
@@ -22,8 +23,27 @@ import queue
 import threading
 from collections import OrderedDict
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk, colorchooser
 from PIL import Image, ImageDraw, ImageTk
+
+# Optional drag-and-drop. Tkinter has no native file-drop support; tkinterdnd2
+# wraps the tkdnd Tcl extension. Without it the app runs exactly as before and
+# files are opened through the dialog.
+try:
+    from tkinterdnd2 import TkinterDnD, DND_FILES
+    DND_SUPPORT = True
+except Exception:
+    TkinterDnD = None
+    DND_FILES = None
+    DND_SUPPORT = False
+
+# Optional conversion of ORCA output into cube files.
+try:
+    import orca_tools
+    ORCA_TOOLS = True
+except Exception:
+    orca_tools = None
+    ORCA_TOOLS = False
 
 # Optional 3D cube support. Kept optional because VTK is a ~500 MB dependency;
 # without it VisManager behaves exactly as before, minus .cube files.
@@ -214,6 +234,107 @@ WORDMARK_PNG_B64 = (
 )
 
 ICON_B64 = {
+    "nav-cont": (
+        "iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAEwElEQVR42u1XT2gUVxj/vu+92dmd2d3UFZSySzQt"
+        "FhZBY9BESDQlklyksWd76EEIFMVtQA9Farx50JZSctDiRYtSmkLamkJtTikqe0kV3DQ2gkiISROTXbKju5ndee/r"
+        "oZkY7e5q8c/JHzyYN/Pe9+e93/dnAN7gdeHYsWOt5XK5yFUwPT19Y/PmzebL1ovMzEePHm0eHh7OCCFQKcUAAP7z"
+        "qVOn+mKxWPzy5cvnTNM0tdb6aSG+kbdu3ZoYGBiYIiJgZmDm2oq3bdtm3bx5s1hpQWtra/Tq1auL6XT6XD6ff4CI"
+        "VGmd1lq1tLR8NDAw8HlPT8+3UkrwPK+6y8zMu3btqiMiMAwDiAiICIQQIISAQCAA8/PzE4cOHdoSj8fFhg0bZCKR"
+        "EKtHfX29TCQS4sCBA+8xMzc0NEgAACKqrbi1tTW6fLxPfPPnJ06ceP/Ro0cPcrncPcdx/vbHw4cPZ1fP5+bmxrPZ"
+        "7N3Jycl0Mpk0EbGqcmRmbmtrq7t27VpeCAFKqScW+BvXrFmDRIQAAIj4WAAiaK2BmUEIAVpruH79+m9DQ0P9vb29"
+        "P1Y7cvks9vlcWlhYYADgmkxFBGaGmZmZ24FAwJRSgpSPVSilVghXVTERgdYatm7dGjp58uRn69evfxf/BS1fkQYA"
+        "yGQyI6lU6ptcLse+UGbWjuPkPc/7j7e+cbKW5UIIGBwc/DWTyQxfvHjxSymlVEqpZQNQKaUOHjz4xaVLlxJDQ0Pf"
+        "h0KhYLlcLieTyc5QKBRNpVIzQgihlFKO4xQGBwfv5HI5RsTKd+wrtiwL5ubmZtvb2xtGR0cLlYzs6upae+XKlfmx"
+        "sbGfSqVSgYhkPp+fIyIRCoWiiIhaaxWLxeoBANra2jpmZ2dVRVb75LEsC3K53L2urq61UkowTRP8ezMMA6SUYFkW"
+        "LC4uTu3fv3+jbdsQjUYxGo1iJBJB27bBtm0Ih8O4bt06un///h+nT5/+4LnIhYiklGLP84CZn2C9EAIKhQKcP3/+"
+        "0wsXLvzlOM6MECJQSY5SqkRE8vDhw9+5rvuhfJF8q7UGRIQjR4780N/f/7MQAqutFUKg67qqo6Nj05kzZ8YkM2sh"
+        "BEopQQgBiPiYeVKin2SqJB8AACiVSjAxMVF6HmNjsdik1tqTiEgLCwtLlaifz+fZD5tnxe/qpFLFY1BKgWVZBhFJ"
+        "WSgU5o8fP/5JOp3+HRHR8zwPEZGZ2TAMIxgM1vkVq0barVmJVmc4rTUDAMi9e/du6uvr69u3b9/H4XA4ZppmePUG"
+        "wzCscrmsXllD0NPTk4zH4+Lp99ls9u7u3bvrKhWR/wN/b3t7+1vMzEREEIlE8OzZs3/u2bNnIxGtxGs4HMZq9fdF"
+        "IbXWoJRix3FmHMcpMjO4rvvKW66VOI5EIm8Hg0GDmaG5udlWSvHo6GiBiCQRod8gPItEtYoOM4NfWoGIABFhZGTk"
+        "a9d1nfHx8V+y2ezdYrGYa2xsDE1PT99oamqyXpan27dvt5mZpR8K3d3dqe7u7q9s2w7u2LGjxbbt6NTUlBsIBOyd"
+        "O3e+UywW7wghcLmrwOfqJFfFthACPc/jzs7OLVVzg2maKyzs7e1tcl3XKZfLRaVUmV8QS0tLi6lUqvHNj8Vrwz+8"
+        "jMmifnTZlwAAAABJRU5ErkJggg=="
+    ),
+    "pencil": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAB7ElEQVR42rXUu4oacRgF8PPXUdAmaZO9gPapbYJo"
+        "FUglXgabBLZLkBACCbsLeYDY7AMoVgoa8DJYJRbTBQSxkDSmECzCmiCLOBqdcS4nzU4IabLjJucBfhz4Dh/gIT6f"
+        "D0IISJKESqVysl6vv0+n00+ZTOYAACRJ2g9rNpuv+Vt0XV+6qGes0+mckaSmaZfZbPawXq+/IEnbts1UKnVvL4wk"
+        "V6vVt3g8fgcAXHQ2m41ujLXb7VOS3Gw2V+Vy+akLJxKJu+l0+r5lWYZt26YnzDTNbT6fPwaAQqHwwDCMlWEYq81m"
+        "c0WSlUrlxBMmy/IRAITDYQBAqVR64jiOTZKtVutNMBj0joVCIQBAPp8/XiwWU5LsdDpnfr8fQoj9MFmWj0zT3LqY"
+        "JEkQQsDn890Oa7fbp/8fE0L8O8xtFwgEoCjKOUlalmXsjbkNa7Xac5Kcz+dfboUBQCQSkXa73Q/TNLeqql4AgLsn"
+        "zxgAZDKZA3ecJNloNF4CQC6XO/SMAUCxWHxMkt1u922v13tHkqqqXmiadukZAyDFYrFH18fxb7fblWVZejKZfAUA"
+        "iqKcy7JctG0bQgg4jvP3X6fr+pJ/ZLlcfq1Wq8+8NPvVcDwef4xGow+Hw+H7fr//YTAYfB6NRvPJZGK6K7hRs+v8"
+        "BFj+2JkOUQotAAAAAElFTkSuQmCC"
+    ),
+    "doc": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAACs0lEQVR42p1Uz0sbURCeefvi7ibZqLGHEj0IXhYh"
+        "lC30FBDav0D8C3rsoUfpqYdelfbW0JxKRdoeSrVIPRS1EE0uggGzQWIFk0O9SCAstTGbzXvTQ7N2zY+a9oN3mm/m"
+        "ffPNmwcAAJZl6QcHB29pCAghvHw+nzEMAwEAGGMQBAIAFIvFj8lkcuH09DTred4lDABjTJmenk6FQqHwzs7O8/n5"
+        "+ScXFxfEGAMp5R8iEdHx8fEXzjn8Dbquw9nZWcFXu7u7+zISifQSpZTi8PDww6BCiAgAAJqmQa1W+1atVvMbGxtP"
+        "iYi2traWotEoXksgIrJtex0Rod9hjAEiQiQSAcdxvjebTefk5GTbV5rL5V5d2dJPTffxzfc8D/L5/GvXdX8kEok7"
+        "9Xq94nleI5VKPepRWCqVPsEQYIzB+Pg4jo2NYTwex6Ojo89CCM+PX03Bdd2fiURCWV1dXTIM41a3x4wxZWVl5UU6"
+        "nbbr9Tr5sXa77TLGeE9BKaVQVRVN03xgGMZtIpKIyDpJTUVRRqampt4rimKHQiFotVpAROBzegrquh6rVCrtycnJ"
+        "uze1LYQYGONBHxERTNNUw+Gw0rn9GllRFCT63W2lUrms1WoSu0hXBRuNRn12dlYtlUrNYYazt7eXnpubezywZVVV"
+        "o9Vq1V1cXLw3Ojoa6yjGPksgERFzuVyx05nsue1fnk03bNteJ9+HoELP85oTExO4vLz8MBaLxYNTDr4ERMRsNrud"
+        "yWTsgcMhItrf339jmuaIEMK76Qvb3Nx85m9RX4VEJDVNM8rlcisej4+Ew2EMcHpwfn4u/biUsh30kXf2l6mqGuWc"
+        "g+M45DgODeMf5xw0TYsFreEdY9eSyeRCuVz+KoTw+k232yIikpxzdWZm5r5t22vXCJZl6YVC4R39BwqFwjvLsnS/"
+        "1i82JOaZ0Ni9OwAAAABJRU5ErkJggg=="
+    ),
+    "file-prev": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABiklEQVR42rWVu2oCQRSGz47rJiQEg4kRCxUrC60E"
+        "C5sVsiASG5u8kFbW5j18B18hhBCSKoTgBfGyrOPsXE6qEeM9YT3lDPPNf85/5gzASrRarYfZbPbdbrcfDcMAQghs"
+        "i13rG6GUkoiInHOaSCTItsOmaQIAQKlUumo0Gvf5fP58J1AIwRARKaXjdDptrgM1rFqt3vq+7yEi9vv9l1/qt4EN"
+        "wyCIuKFMCAGO40Q7nc57KBSylFKCEGIeVLhYLKapVGqpUCuzbTvied5QSsmllHw6nX7Zth35E9CyrGXNXNftSSm5"
+        "EIJRSsflcvl6rymrwGQyGdL1KxaLl5PJ5FMpJYUQjDHmViqVGwCAcDh8HDCTyZgAAIVC4WI0Gn1o9znntFar3a2a"
+        "dBDo+74Xi8VINpu1BoPBKyKi3qvX64mDytaBjDE3Ho+Tbrf7pC+Yz+cjrWwf7MiW/2ecLOXATTlJ2wTe2Cd7ejpt"
+        "DXUcJ0opHWvocDh8C3R89Xq958AGbLPZdHK53NlOYBBfwA8b88i22nWbBgAAAABJRU5ErkJggg=="
+    ),
+    "file-next": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABaklEQVR42r3VQWvCMBQA4GdWu7ExHHMqPah48qAn"
+        "wYOXCiuIrBcv+0N68ux+kX9hjDHYaYxRLUVrqTFN0rdTQIZlCtneMZAvecnLC0BGEEIyx3O5HMxms8fNZvM1nU4f"
+        "sgxotVrnk8nE6fV61wAAhmEcXMSyLMI5p4iIaZrKTNDzvGdExCRJ4uFwePcTVWC9XjcopStERCEEywR933+TUnIp"
+        "JaeUrhzHud1HFVir1Yzdbhf+Ctq2XQjD8FOhcRz7tm0XFHoyCADQ7/dvKKUrIQSTUvIoijx1pqZpngbm83kAABgM"
+        "BkXGWCSEYGmayvV6/dHtdq9U2tVq9ezoHarzcl23zDmn6jaDIHjvdDqXAACNRuP4lPd3OhqNLDUJEXG5XL42m02z"
+        "VCqRJEnio8F91HXd8na7DRQwn8+fKpUKYYxFh0AC/xFaU9Z6KX9SNloLW/vT094cFovFi9b21W63L8bj8b22Bqvj"
+        "C/gGDkjXP/OmQxsAAAAASUVORK5CYII="
+    ),
+    "folder-prev": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAByUlEQVR42rWUP4saYRDGn3f9k5NjQe1NOgOCBoMm"
+        "eFdclc8gwpVycIWghRZrsRCwCwQCIZjKBYt8AjsRUSyWgMUV16Q6LESQUyTo6e4+afKKpwkh3DrVCzPzG96ZZwZw"
+        "2wzDuJrP56N8Pv8SADwez0GMoih/zT/w8bf1er3P+wFCiG2BUqn02jCMq0gk4pE+r9cLAEilUqfNZvM6l8u9wGaz"
+        "WTqOY3e73U+7wN2EWq32Thau1+uXABAIBAAAmUxGXSwWY+mHZVkPJLkPlDBd1y9Icrlc3pNkNpt9LmPS6fTpbDa7"
+        "s217Q5LtdvvDH4ESpmnaGUmuVqs5SRaLxaRsRzKZDEyn0x8S1ul0PqqqKg6Afr8fAFCpVN7uwsrl8hsJSyQSJ5PJ"
+        "5FbCBoPBV1VVBQA8AgohtgPYhWmadiZhsVjs2Xg8vnEcxyZJ0zQbwWBQbBUigf1+/wsAFAqFVyS5Xq9/kqSu6xey"
+        "FdFo1D8ajb7LAQyHw2/hcFg8UocEtlqt9/F4/ETCHMexq9XqOQD4fD4oigLTNBskaVnWg2majVAoJPalpvzPEggh"
+        "/h1/tC+7PpSjyOYown7y6rl+HORDTvnJ58v1A+u2/QKSWjvvsSZoKQAAAABJRU5ErkJggg=="
+    ),
+    "folder-next": (
+        "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAB60lEQVR42rXVMYsaQRQH8P/uqjk5FtTepPNQ0GDQ"
+        "BC/FVfkMIqSUgxSCFlqsxaaxC4QcpDDVbbDIF7CUdREs1oCEFGlSBQsRJIoJerruP0UyYjxJCGymmuUNv5nhvXkL"
+        "eDyU/Q9ZlkHy6MJjMUVRQBLFYvHMNM0P8Xj8GwqFwr1Wq/Usk8mcAoDP54MkSQCAaDSqGIZxWalUHghAxMQmANDr"
+        "9V7z14CYLBaLcS6XUwEgGAwCAJrN5lMRbzQaTw43FGC3233luu52s9ks0el0XpDkdrvdzGazL9ls9lQszufzd0ly"
+        "uVx+JUld1y8EegiSpOM4N1BVVTJN86VAp9Pp53Q6HRTXKpfLaZJcrVZzktQ07VygR0EAUFVV6vf7bwQ6mUw+pVKp"
+        "E4FWq9WH+2itVnsEAIFA4DaoKD8THQqFJNu2r0nSdd3teDz+mEgk7ghU07TzfVQkSpKk2ycUR49EItJwOHwnEjEa"
+        "jd7HYrGAiOu6fkGS6/X6O0mWSqX7+1negftoOByWbNu+dhznhiQHg8FbWZbh9/sBAPV6/bHruluBJpPJk3a7/VyA"
+        "8t8qn6T7z8/F0yv/l6R4WjZeFLZlWVc70Iun9xvoRXOwLOtq1xw8b1/HyudPpXXYYAGgWCyezefzkWEYl17/AfAD"
+        "fFdHMcqRC70AAAAASUVORK5CYII="
+    ),
+    "nav-wrap": (
+        "iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAADF0lEQVR42u1WzUtUURQ/5777xnQmzEAZiDBrGGvx"
+        "God0oQiRQWmgEITRH+Bi9B/QwY2BH0HgRlwNPKiFhUEu0kUL0UVKCREyBCGIjmaKCpFf896799wW+WRKR0fDTc0P"
+        "7ur+zsfvnHM/ALLI4r8AIgIigt/vZ1NTU8+UUoqIpEqBlNKRUjptbW2Vx/HNGAMAAH7QpqZpIISA9vb2B3l5eecq"
+        "KyvPAgAQkdo1RiGEqqiouNTX1/dpcXGxVAgh0wVTSikhBE1MTHxbWlqSiAh4EJFzDkIIGBkZeTw3N/e5ubn5RTqn"
+        "CwsLH4qKiq4lEon3jDGeJjBxznPy8/Mv1NfXX5+cnPzBDyuLbds7ubm5XsbYXjKpyTmOA+Pj42ZJSUmorq4uomka"
+        "SCn3tY0xBogIpmlGe3p6nlRXV0f4n5uppUZEtttfcJcLKSUopSAWiw2Mjo72zc/P16ZT7KomIlFQUFDS1dX1mjPG"
+        "gIh+yzRVWTq4/LGxse+lpaVnvF4vP2KoUEqpysvLL8ZisS+ciCAnJwdqa2v9fr//PCKCZVmOaZozSinKZFJnZmYc"
+        "AHAy4Qoh5olI8EAgoA8PD78JBoN3Njc3VzRN05eXl+Omad4kIkK3/hkckaM4RAQ+n09njHE+ODj4XClFxcXF+srK"
+        "ikh1omkaV0qpo5ym9v4onnskeVlZ2cOGhgZ/IpEQuq6DZVnAOT/1S4oBABiGcQUAIBQKeZuamq66w5VJmU8K3t3d"
+        "fbezs/NdYWHh/e3t7a1oNPo2HA4/am1tfSmlFKcVnEej0berq6s3WlpaniIiAwCIRCID/f39Q8lkcuu0AjNEhN7e"
+        "3o+BQKCmsbHx3vT09CvDMHLj8XjS5/MVUKaTc1zFSinQdR2EEGBZFtXU1DSur68rRAQppYOIyBgDd51Y4a4tYwz3"
+        "XifH+XX24/F4EgDA4/GAbdvAOffs7OxsERHYtv1XCt3CbWxsOPueRbedLmltbe1rOBy+bRjGkKZpKKVUJw3s2ldV"
+        "VV0+tCyICMFg0DM7Ozt+0EfgJCAiKYSwOjo6bmW/W1n8e/gJlTjU3OQeF/sAAAAASUVORK5CYII="
+    ),
     "file-single": (
         "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAD2ElEQVR42nVVTWhiVxj97nsqecNgOiU6MPlhkjji"
         "xtbWhTODkVQCJjSBjr4uBssECaFdhJAQ0GoHJgG7aDZqMuBk3JRkFWRIIi4CCdGxqDAZuhB3T0wXZjEEI6G++FN9"
@@ -470,6 +591,8 @@ GLYPHS = {
     "flip_v":   "\u21c5",   # ⇅ vertical
     "fullscreen": "\u26f6", # ⛶ fullscreen
     "help":     "?",
+    "collapsed": "\u25b8",  # ▸ group folded
+    "expanded":  "\u25be",  # ▾ group open
     "flag_on":  "\u2691",   # ⚑ flagged
     "flag_off": "\u2690",   # ⚐ not flagged
     "note":     "\u270e",   # ✎ pencil
@@ -481,7 +604,7 @@ ASCII_GLYPHS = {
     "delete": "X", "invert": "~", "prev2": "<<", "prev": "<",
     "next": ">", "next2": ">>", "cont": "->", "wrap": "<->",
     "checked": "[x]", "unchecked": "[ ]", "warn": "!", "dot": "*",
-    "dot_o": "o", "clear": "x",
+    "dot_o": "o", "clear": "x", "collapsed": ">", "expanded": "v",
     "flag_on": "[F]", "flag_off": "[ ]", "note": "N", "export": "v",
     "rot_ccw": "<|", "rot_cw": "|>", "flip_h": "<>", "flip_v": "^v",
     "fullscreen": "[ ]", "help": "?",
@@ -586,6 +709,7 @@ ACTIONS = [
     ("rot_reset",   "Reset orientation",     "<Key-r>",             "reset_transform"),
     ("fullscreen",  "Fullscreen image",      "<Key-F11>",           "toggle_fullscreen"),
     ("help",        "Help",                  "<Key-F1>",            "open_help"),
+    ("gen_cubes",   "Generate cube files",   "<Control-Key-g>",     "open_generate_cubes"),
     ("cube_setup",  "Isosurface settings",   "<Key-i>",             "open_cube_settings"),
     ("iso_up",      "Isovalue up",           "<Key-period>",        "iso_up"),
     ("iso_down",    "Isovalue down",         "<Key-comma>",         "iso_down"),
@@ -750,6 +874,16 @@ DEFAULT_SETTINGS = {
     "cube_depth_peel": True,
     "cube_fxaa": True,
     "cube_quality": "quality",       # "fast" | "quality" | "best"
+    "cube_pos_color": [0.95, 0.82, 0.25],
+    "cube_neg_color": [0.25, 0.73, 0.85],
+    "cube_bg_color": [0.043, 0.043, 0.078],
+    "cube_atom_scheme": "element",
+    "cube_atom_overrides": {},
+    "cube_opacity": 0.65,
+    "cube_shadows": False,
+    "cube_ssao": False,
+    "cube_fxaa": True,
+    "cube_ordering": True,
     "cube_export_format": "png",
     "cube_export_scale": 2,
     "cube_export_white": True,
@@ -1764,6 +1898,10 @@ class VisManager:
         self.notes           = {}           # {filepath: note text ("" = flag only)}
         self.transforms      = {}           # {filepath: (rot 0-3, mirror bool)}
         self.notes_exported  = True         # False once notes change unexported
+        self.roots           = []           # every opened directory, in order
+        self.collapsed       = set()        # roots collapsed in the sidebar
+        self._last_drop_choice = "add"
+        self._lb_map         = []
         self._scene          = None         # active CubeScene, if any
         self._scene_path     = None
         self._scene_error    = ""
@@ -1872,7 +2010,7 @@ class VisManager:
         self._shortcut_btns["process"] = (self.process_btn, f"{GLYPHS['process']}  Process Images")
 
         self.export_btn = self._btn(
-            tb, "Export Notes", self.export_notes, image=icon("edit-document"),
+            tb, "Export Notes", self.export_notes, image=icon("doc"),
             bg="#7c3aed", hover="#8b5cf6")
         tb.add(self.export_btn, "right")
         self._shortcut_btns["export_notes"] = (self.export_btn,
@@ -2021,7 +2159,7 @@ class VisManager:
 
         self.big_pos_lbl = tk.Label(
             header, text="\u2014", bg=BG_DARK, fg=TEXT_PRIMARY,
-            font=("Helvetica", 30, "bold"),
+            font=("Helvetica", 19, "bold"),
         )
         self.big_pos_lbl.pack()
 
@@ -2295,12 +2433,12 @@ class VisManager:
         mk = self._btn
         self._nav_btns = {}
 
-        b_pf = mk(grid, GLYPHS["prev2"], self.prev_folder,
+        b_pf = mk(grid, "", self.prev_folder, image=icon("folder-prev"),
                   bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        self._shortcut_btns["prev_folder"] = (b_pf, GLYPHS["prev2"])
-        b_pi = mk(grid, GLYPHS["prev"], self.prev_image,
+        self._shortcut_btns["prev_folder"] = (b_pf, "")
+        b_pi = mk(grid, "", self.prev_image, image=icon("file-prev"),
                   bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        self._shortcut_btns["prev_image"] = (b_pi, GLYPHS["prev"])
+        self._shortcut_btns["prev_image"] = (b_pi, "")
 
         self.keep_btn = mk(grid, f"{GLYPHS['keep']}  KEEP", self.act_keep,
                            bg=BTN_KEEP, hover=BTN_KEEP_HOV, width=12)
@@ -2310,18 +2448,18 @@ class VisManager:
         self._shortcut_btns["delete"] = (self.del_btn,
                                          f"{GLYPHS['delete']}  DELETE")
         self.note_btn = mk(grid, "Note", self.edit_note,
-                           image=icon("edit-document"),
+                           image=icon("pencil"),
                            bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
         self.flag_btn = mk(grid, "Flag", self.toggle_flag, image=icon("flag"),
                            bg=BTN_NAV, hover=BTN_NAV_HOV, width=12)
         self._shortcut_btns["flag"] = (self.flag_btn, "")
 
-        b_ni = mk(grid, GLYPHS["next"], self.next_image,
+        b_ni = mk(grid, "", self.next_image, image=icon("file-next"),
                   bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        self._shortcut_btns["next_image"] = (b_ni, GLYPHS["next"])
-        b_nf = mk(grid, GLYPHS["next2"], self.next_folder,
+        self._shortcut_btns["next_image"] = (b_ni, "")
+        b_nf = mk(grid, "", self.next_folder, image=icon("folder-next"),
                   bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10, width=5)
-        self._shortcut_btns["next_folder"] = (b_nf, GLYPHS["next2"])
+        self._shortcut_btns["next_folder"] = (b_nf, "")
 
         self._nav_btns = dict(pf=b_pf, pi=b_pi, keep=self.keep_btn,
                               dele=self.del_btn, note=self.note_btn,
@@ -2445,6 +2583,8 @@ class VisManager:
         if hasattr(self, "export_btn"):
             self.export_btn.configure(
                 text="Notes" if compact else "Export Notes")
+        if hasattr(self, "gen_btn"):
+            self.gen_btn.configure(text="Cubes" if compact else "Make Cubes")
         if hasattr(self, "zoom_hint"):
             self.zoom_hint.configure(
                 text="" if compact else
@@ -2737,6 +2877,21 @@ class VisManager:
         self._refresh_shortcut_labels()
 
     # ─── Help ─────────────────────────────────────────────────────────────────
+    def open_generate_cubes(self):
+        """Convert ORCA / molden output in the open directories into cubes."""
+        if not ORCA_TOOLS:
+            messagebox.showerror(
+                "Unavailable",
+                "The conversion module could not be loaded.")
+            return
+        if not (self.roots or self.base_dir):
+            messagebox.showinfo(
+                "No directory open",
+                "Open or drop a directory first, then generate cubes from "
+                "whatever it contains.")
+            return
+        GenerateCubesDialog(self)
+
     def open_help(self):
         HelpDialog(self)
 
@@ -3009,6 +3164,139 @@ class VisManager:
 
 
 
+    # ─── Drag and drop / multiple roots ───────────────────────────────────────
+    def dnd_status(self):
+        """Why drag-and-drop is or isn't working, in one line."""
+        if not DND_SUPPORT:
+            return ("unavailable", "tkinterdnd2 not installed "
+                                   "— pip install tkinterdnd2")
+        if not hasattr(self.root, "drop_target_register"):
+            return ("unavailable", "the window was not created with "
+                                   "TkinterDnD — restart the app")
+        n = getattr(self, "_dnd_targets", 0)
+        if n == 0:
+            return ("unavailable", "the tkdnd library failed to load for this "
+                                   "platform")
+        return ("ready", f"drop files or folders anywhere ({n} targets)")
+
+    def setup_dnd(self):
+        """Accept files and folders dropped anywhere on the window."""
+        self._dnd_targets = 0
+        if not DND_SUPPORT:
+            return
+        if not hasattr(self.root, "drop_target_register"):
+            # A plain tk.Tk cannot accept drops; main() builds a TkinterDnD.Tk
+            # when the package is present, so this means something went wrong
+            # earlier rather than a missing dependency.
+            return
+        # Registering only the toplevel is not enough: a child widget under
+        # the cursor consumes the drop, so the canvas, folder list and side
+        # panel all have to accept it too.
+        targets = [self.root]
+        for attr in ("canvas", "folder_lb", "_sidebar", "_nav", "_toolbar",
+                     "_view_tb"):
+            w = getattr(self, attr, None)
+            if w is not None:
+                targets.append(w)
+        registered = 0
+        for w in targets:
+            try:
+                w.drop_target_register(DND_FILES)
+                w.dnd_bind("<<Drop>>", self._on_drop)
+                registered += 1
+            except Exception:
+                pass
+        self._dnd_targets = registered
+
+    @staticmethod
+    def parse_drop(data):
+        """
+        Split a tkdnd drop payload into paths.
+
+        tkdnd brace-quotes any path containing spaces and separates the rest
+        with plain spaces, so a naive split() mangles most real filenames.
+        """
+        paths = []
+        for match in re.finditer(r"\{[^}]*\}|\S+", data or ""):
+            token = match.group(0)
+            paths.append(token[1:-1] if token.startswith("{") else token)
+        return [p for p in paths if p]
+
+    def _on_drop(self, event):
+        paths = [p for p in self.parse_drop(event.data) if os.path.exists(p)]
+        if not paths:
+            return
+        # A dropped file means "open the folder it lives in" — reviewing one
+        # file in isolation is not what this tool is for.
+        folders, loose = [], []
+        for p in paths:
+            if os.path.isdir(p):
+                folders.append(os.path.abspath(p))
+            else:
+                loose.append(os.path.abspath(os.path.dirname(p)))
+        for f in loose:
+            if f not in folders:
+                folders.append(f)
+
+        new_roots = [f for f in folders if f not in self.roots]
+        if not new_roots:
+            messagebox.showinfo("Already open",
+                                "Those folders are already in the list.")
+            return
+
+        if self.roots:
+            choice = DropChoiceDialog(self, new_roots).result
+            if choice == "cancel":
+                return
+            if choice == "replace":
+                self.roots = []
+        self.add_roots(new_roots)
+
+    def add_roots(self, folders):
+        """Scan one or more directories into the current list."""
+        for f in folders:
+            if f not in self.roots:
+                self.roots.append(f)
+        if not self.roots:
+            return
+        self.base_dir = self.roots[0]
+        self.dir_lbl.config(
+            text=os.path.basename(os.path.normpath(self.roots[0])) +
+            (f"  +{len(self.roots) - 1} more" if len(self.roots) > 1 else ""))
+        self.scan_directory()
+
+    def root_of(self, folder):
+        """Which opened root a folder belongs to."""
+        best = None
+        for r in self.roots:
+            if folder == r or folder.startswith(r + os.sep):
+                if best is None or len(r) > len(best):
+                    best = r
+        return best or (self.roots[0] if self.roots else folder)
+
+    def toggle_collapse(self, root_path):
+        if root_path in self.collapsed:
+            self.collapsed.discard(root_path)
+        else:
+            self.collapsed.add(root_path)
+        self._refresh_folder_lb()
+
+    def close_root(self, root_path):
+        """Remove one opened directory and everything under it."""
+        if root_path not in self.roots:
+            return
+        self.roots.remove(root_path)
+        self.collapsed.discard(root_path)
+        if not self.roots:
+            self.base_dir = None
+            self._all_files = []
+            self.type_counts = {}
+            self._rebuild_folders({})
+            self.dir_lbl.config(text="No directory selected")
+            return
+        self.base_dir = self.roots[0]
+        self.add_roots([])
+
     # ─── Cube (3D) support ────────────────────────────────────────────────────
     def _cube_scene(self, path):
         """
@@ -3042,6 +3330,10 @@ class VisManager:
         return self._scene
 
     def _cube_bg(self):
+        """The user's chosen background, falling back to the keep/delete tint."""
+        chosen = self.settings.get("cube_bg_color")
+        if chosen:
+            return tuple(chosen)
         c = KEEP_BG if self.image_states.get(self._cur_file(), True) else DELETE_BG
         return tuple(int(c[i:i + 2], 16) / 255 for i in (1, 3, 5))
 
@@ -3134,6 +3426,24 @@ class VisManager:
         fp = self._cur_file()
         if not fp:
             return
+        if self.is_cube_view():
+            # On a cube these controls must move the camera, not rotate the
+            # rendered bitmap — spinning a picture of a 3D scene leaves the
+            # lighting and perspective wrong and the axes inconsistent.
+            sc = self._scene
+            if op == "cw":
+                sc.roll(-90)
+            elif op == "ccw":
+                sc.roll(90)
+            elif op == "h":
+                sc.rotate(180 / 0.4, 0)      # half turn about the vertical
+            elif op == "v":
+                sc.rotate(0, 180 / 0.4)      # half turn about the horizontal
+            else:
+                sc.reset_camera()
+            self._show_image(keep_zoom=True, recenter=True)
+            self._refresh_transform_ui()
+            return
         rot, mirror = compose_transform(*self.get_transform(fp), op)
         if rot or mirror:
             self.transforms[fp] = (rot, mirror)
@@ -3160,16 +3470,31 @@ class VisManager:
             # Pin it to the top of the strip. Appended at the end it lands
             # below the fold in the scrolling toolbar, which buries the one
             # control you actually reach for on a cube.
-            kids = [c for c in self._vtb_body.winfo_children() if c is not sec]
-            if kids:
-                sec.pack(fill=tk.X, before=kids[0])
-            else:
+            # The anchor has to be a widget that is currently packed; compact
+            # mode hides the captions, and pack(before=...) on a hidden widget
+            # raises "isn't packed".
+            anchor = None
+            for c in self._vtb_body.winfo_children():
+                if c is not sec and c.winfo_manager() == "pack":
+                    anchor = c
+                    break
+            try:
+                if anchor is not None:
+                    sec.pack(fill=tk.X, before=anchor)
+                else:
+                    sec.pack(fill=tk.X)
+            except tk.TclError:
                 sec.pack(fill=tk.X)
         elif not want and sec.winfo_ismapped():
             sec.pack_forget()
 
     def _refresh_transform_ui(self):
         fp = self._cur_file()
+        if self.is_cube_view():
+            # The camera has no fixed orientation to report
+            if hasattr(self, "rot_lbl"):
+                self.rot_lbl.config(text="3D", fg=ACCENT_BLUE)
+            return
         rot, mirror = self.get_transform(fp) if fp else (0, False)
         if hasattr(self, "rot_lbl"):
             txt = transform_label(rot, mirror)
@@ -3224,12 +3549,23 @@ class VisManager:
         self._all_files = []          # every supported file found on disk
         self.type_counts = {}         # {type_id: count} across the whole tree
 
-        for root_dir, dirs, files in os.walk(self.base_dir):
-            dirs.sort()
-            for f in sorted(files):
-                ext = os.path.splitext(f)[1].lower()
-                if ext in ALL_EXTS:
+        roots = list(self.roots)
+        if not roots and self.base_dir:
+            roots = [self.base_dir]
+            self.roots = roots
+
+        seen = set()
+        for root_path in roots:
+            for root_dir, dirs, files in os.walk(root_path):
+                dirs.sort()
+                for f in sorted(files):
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext not in ALL_EXTS:
+                        continue
                     fp = os.path.join(root_dir, f)
+                    if fp in seen:      # nested roots must not double-count
+                        continue
+                    seen.add(fp)
                     self._all_files.append(fp)
                     tid = EXT_TO_TYPE[ext]
                     self.type_counts[tid] = self.type_counts.get(tid, 0) + 1
@@ -3678,16 +4014,28 @@ class VisManager:
         self._render_view(interactive=interactive)
 
     def zoom_in(self):
+        if self.is_cube_view():
+            self.cube_zoom(1.15)
+            return
         self._set_zoom(self._zoom * self.ZOOM_STEP)
 
     def zoom_out(self):
+        if self.is_cube_view():
+            self.cube_zoom(1 / 1.15)
+            return
         self._set_zoom(self._zoom / self.ZOOM_STEP)
 
     def zoom_fit(self):
+        if self.is_cube_view():
+            self.cube_reset()
+            return
         self._zoom = 1.0
         self._render_view(recenter=True)
 
     def zoom_actual(self):
+        if self.is_cube_view():
+            self.cube_reset()
+            return
         """1:1 — one image pixel per screen pixel."""
         if self._src_img is None:
             return
@@ -3912,11 +4260,11 @@ class VisManager:
         if not hasattr(self, "nav_mode_btn"):
             return
         wrap = self.settings["nav_mode"] == "wrap"
-        base = (f"{GLYPHS['wrap']}  Wrap in folder" if wrap
-                else f"{GLYPHS['cont']}  Continuous (all folders)")
+        base = "Wrap in folder" if wrap else "Continuous (all folders)"
         self._shortcut_btns["nav_mode"] = (self.nav_mode_btn, base)
         key = self.bindings.get("nav_mode")
         self.nav_mode_btn.configure(
+            image=icon("nav-wrap") if wrap else icon("nav-cont"),
             text=f"{base}  [{display_binding(key)}]" if key else base,
             bg="#7c3aed" if wrap else BTN_KEYS,
             hover="#8b5cf6" if wrap else BTN_KEYS_HOV,
@@ -3994,11 +4342,33 @@ class VisManager:
 
     def _on_folder_select(self, _event=None):
         sel = self.folder_lb.curselection()
-        if sel:
-            self.cur_folder_idx = sel[0]
-            self.cur_image_idx  = 0
+        if not sel:
+            return
+        row = sel[0]
+        mapping = getattr(self, "_lb_map", [])
+        if row >= len(mapping):
+            return
+        kind, value = mapping[row]
+        if kind == "root":
+            self.toggle_collapse(value)     # clicking a header folds the group
+            return
+        if value in self.folder_list:
+            self.cur_folder_idx = self.folder_list.index(value)
+            self.cur_image_idx = 0
             self._show_image()
             self._start_preload()
+
+    def _sync_folder_lb(self):
+        """Highlight the row for the current folder, accounting for headers."""
+        self.folder_lb.select_clear(0, tk.END)
+        if not self.folder_list:
+            return
+        current = self.folder_list[self.cur_folder_idx]
+        for row, (kind, value) in enumerate(getattr(self, "_lb_map", [])):
+            if kind == "folder" and value == current:
+                self.folder_lb.select_set(row)
+                self.folder_lb.see(row)
+                return
 
     def _on_canvas_resize(self, _event=None):
         """
@@ -4127,21 +4497,54 @@ class VisManager:
 
     # ─── Sidebar refresh ──────────────────────────────────────────────────────
     def _refresh_folder_lb(self):
+        """
+        Rebuild the folder list, grouped by opened directory.
+
+        With several roots open a flat list becomes unreadable, so each root
+        gets a header row that folds its folders away. _lb_map records what
+        each visible row means, since a Listbox only stores strings.
+        """
         self.folder_lb.delete(0, tk.END)
+        self._lb_map = []
+        multi = len(self.roots) > 1
+
+        by_root = {}
         for fp in self.folder_list:
-            files      = self.folders[fp]
-            keep_n     = sum(1 for f in files if self.image_states.get(f, True))
-            label      = folder_label(fp, self.base_dir)
-            flag_n     = sum(1 for f in files if f in self.notes)
-            flag_txt   = f"  {GLYPHS['flag_on']}{flag_n}" if flag_n else ""
-            entry_text = f"{label}  ({keep_n}/{len(files)} \u2713){flag_txt}"
-            self.folder_lb.insert(tk.END, entry_text)
+            by_root.setdefault(self.root_of(fp), []).append(fp)
+
+        for root_path in (self.roots or list(by_root)):
+            folders = by_root.get(root_path, [])
+            if multi:
+                collapsed = root_path in self.collapsed
+                n_files = sum(len(self.folders[f]) for f in folders)
+                arrow = GLYPHS["collapsed"] if collapsed else GLYPHS["expanded"]
+                name = os.path.basename(os.path.normpath(root_path)) or root_path
+                self.folder_lb.insert(
+                    tk.END,
+                    f"{arrow} {name}   [{len(folders)}\u2009folders, "
+                    f"{n_files}\u2009files]")
+                try:
+                    self.folder_lb.itemconfig(tk.END, foreground=ACCENT_BLUE)
+                except tk.TclError:
+                    pass
+                self._lb_map.append(("root", root_path))
+                if collapsed:
+                    continue
+
+            for fp in folders:
+                files  = self.folders[fp]
+                keep_n = sum(1 for f in files if self.image_states.get(f, True))
+                flag_n = sum(1 for f in files if f in self.notes)
+                flag_txt = f"  {GLYPHS['flag_on']}{flag_n}" if flag_n else ""
+                label = folder_label(fp, root_path)
+                indent = "    " if multi else ""
+                self.folder_lb.insert(
+                    tk.END,
+                    f"{indent}{label}  ({keep_n}/{len(files)} \u2713){flag_txt}")
+                self._lb_map.append(("folder", fp))
         self._sync_folder_lb()
 
-    def _sync_folder_lb(self):
-        self.folder_lb.select_clear(0, tk.END)
-        self.folder_lb.select_set(self.cur_folder_idx)
-        self.folder_lb.see(self.cur_folder_idx)
+
 
     # ─── Stats ────────────────────────────────────────────────────────────────
     def _update_stats(self):
@@ -5012,17 +5415,342 @@ class ShortcutsDialog(tk.Toplevel):
         self.destroy()
 
 
-# ─── Cube 3D dialogs ──────────────────────────────────────────────────────────
-class CubeSettingsDialog(tk.Toplevel):
-    """Isosurface controls for the current cube file."""
+# ─── Generate cubes from quantum-chemistry output ─────────────────────────────
+class GenerateCubesDialog(tk.Toplevel):
+    """
+    Lists every convertible file under the open directories and runs the
+    conversion.
 
-    def __init__(self, app, scene):
+    The scan happens on open so the dialog can say what is actually there
+    rather than making the user guess, and each source shows which cubes it
+    already has beside it.
+    """
+
+    def __init__(self, app):
         super().__init__(app.root)
-        self.app, self.scene = app, scene
+        self.app = app
+        self._closed = False
+        self._thread = None
+        self._stop = False
+        app.suspend_shortcuts()
+
+        self.title("Generate cube files")
+        self.configure(bg=BG_DARK)
+        self.transient(app.root)
+        self.resizable(True, True)
+        self.minsize(620, 460)
+
+        self.jobs = orca_tools.scan_sources(app.roots or
+                                            ([app.base_dir] if app.base_dir
+                                             else []))
+        self.selected = {i: True for i in range(len(self.jobs))}
+
+        self._build()
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.scroller.fit_content(max_height=int(sh * 0.4))
+        self.update_idletasks()
+        fit_to_screen(self)
+        self.grab_set()
+        self.focus_force()
+        self.bind("<Escape>", lambda e: self._close())
+        self.protocol("WM_DELETE_WINDOW", self._close)
+
+    # ── Layout ───────────────────────────────────────────────────────────────
+    def _build(self):
+        hdr = tk.Frame(self, bg=BG_MID, padx=20, pady=12)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="Generate cube files", bg=BG_MID, fg=TEXT_PRIMARY,
+                 font=("Helvetica", 14, "bold")).pack(anchor=tk.W)
+        tk.Label(hdr, text="ORCA .gbw and molden files become the .cube files "
+                           "this app displays.",
+                 bg=BG_MID, fg=TEXT_MUTED,
+                 font=("Helvetica", 9)).pack(anchor=tk.W)
+
+        footer = tk.Frame(self, bg=BG_MID, padx=20, pady=10)
+        footer.pack(side=tk.BOTTOM, fill=tk.X)
+
+        status = tk.Frame(self, bg=BG_DARK, padx=20)
+        status.pack(side=tk.BOTTOM, fill=tk.X)
+        self.prog_var = tk.DoubleVar()
+        self.prog = ttk.Progressbar(status, variable=self.prog_var,
+                                    maximum=100, length=400)
+        self.status_lbl = tk.Label(status, text="", bg=BG_DARK, fg=TEXT_MUTED,
+                                   font=("Helvetica", 9), anchor=tk.W)
+        self.status_lbl.pack(fill=tk.X, pady=(0, 6))
+
+        body = tk.Frame(self, bg=BG_DARK, padx=20, pady=12)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        # ── What is installed ──
+        tk.Label(body, text="TOOLCHAIN", bg=BG_DARK, fg=TEXT_MUTED,
+                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W)
+        self.missing = []
+        for name, ok, note in orca_tools.backend_report():
+            if not ok:
+                self.missing.append(name)
+            row = tk.Frame(body, bg=BG_DARK)
+            row.pack(fill=tk.X, anchor=tk.W)
+            tk.Label(row, text=("OK" if ok else "missing"), width=8,
+                     bg=BG_DARK, fg=(BTN_KEEP_HOV if ok else BTN_DEL_HOV),
+                     font=("Helvetica", 9, "bold"),
+                     anchor=tk.W).pack(side=tk.LEFT)
+            tk.Label(row, text=name, bg=BG_DARK, fg=TEXT_PRIMARY, width=11,
+                     font=("Helvetica", 9), anchor=tk.W).pack(side=tk.LEFT)
+            tk.Label(row, text=note, bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 8), anchor=tk.W).pack(side=tk.LEFT)
+
+        tk.Frame(body, bg=BORDER, height=1).pack(fill=tk.X, pady=10)
+
+        # ── Files found ──
+        head = tk.Frame(body, bg=BG_DARK)
+        head.pack(fill=tk.X)
+        tk.Label(head, text=f"FILES FOUND  ({len(self.jobs)})", bg=BG_DARK,
+                 fg=TEXT_MUTED, font=("Helvetica", 9, "bold")).pack(side=tk.LEFT)
+        if self.jobs:
+            FlatButton(head, text="All", command=lambda: self._set_all(True),
+                       bg=BTN_INVERT, hover="#606878",
+                       font_size=8).pack(side=tk.RIGHT, padx=2)
+            FlatButton(head, text="None", command=lambda: self._set_all(False),
+                       bg=BTN_INVERT, hover="#606878",
+                       font_size=8).pack(side=tk.RIGHT, padx=2)
+
+        self.scroller = ScrollFrame(self, bg=BG_DARK)
+        self.scroller.pack(in_=body, fill=tk.BOTH, expand=True, pady=(6, 0))
+        self.vars = {}
+        if not self.jobs:
+            tk.Label(self.scroller.body,
+                     text="Nothing convertible in the open directories.\n"
+                          "Looked for .gbw, .molden / .molden.input, "
+                          ".scfp / .scfr / .densities",
+                     bg=BG_DARK, fg=TEXT_MUTED, justify=tk.LEFT,
+                     font=("Helvetica", 9)).pack(anchor=tk.W, pady=8)
+        for i, job in enumerate(self.jobs):
+            row = tk.Frame(self.scroller.body, bg=BG_DARK)
+            row.pack(fill=tk.X, pady=1)
+            var = tk.BooleanVar(value=True)
+            self.vars[i] = var
+            tk.Checkbutton(row, variable=var, bg=BG_DARK,
+                           selectcolor=BG_MID, activebackground=BG_DARK,
+                           highlightthickness=0, bd=0).pack(side=tk.LEFT)
+            tk.Label(row, text=job["kind"].upper(), width=8, bg=BG_DARK,
+                     fg=ACCENT_BLUE, font=("Helvetica", 8, "bold"),
+                     anchor=tk.W).pack(side=tk.LEFT)
+            tk.Label(row, text=os.path.basename(job["path"]), bg=BG_DARK,
+                     fg=TEXT_PRIMARY, font=("Helvetica", 9),
+                     anchor=tk.W).pack(side=tk.LEFT)
+            note = " \u2192 " + ", ".join(orca_tools.products_for(job["kind"]))
+            if job["cubes"]:
+                note += f"   ({len(job['cubes'])} cube(s) already here)"
+            tk.Label(row, text=note, bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 8), anchor=tk.W).pack(side=tk.LEFT)
+        self.scroller.bind_wheel_recursive()
+
+        # ── Options ──
+        opts = tk.Frame(body, bg=BG_DARK)
+        opts.pack(fill=tk.X, pady=(10, 0))
+        tk.Label(opts, text="WHAT TO GENERATE", bg=BG_DARK, fg=TEXT_MUTED,
+                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W)
+
+        self.v_homo = tk.BooleanVar(value=True)
+        self.v_lumo = tk.BooleanVar(value=True)
+        self.v_dens = tk.BooleanVar(value=False)
+        for text, var in (("HOMO", self.v_homo), ("LUMO", self.v_lumo),
+                          ("Spin density (orca_plot)", self.v_dens)):
+            tk.Checkbutton(opts, text=text, variable=var, bg=BG_DARK,
+                           fg=TEXT_PRIMARY, selectcolor=BG_MID,
+                           activebackground=BG_DARK,
+                           activeforeground=TEXT_PRIMARY,
+                           highlightthickness=0, bd=0,
+                           font=("Helvetica", 10)).pack(anchor=tk.W)
+
+        grid_row = tk.Frame(opts, bg=BG_DARK)
+        grid_row.pack(fill=tk.X, pady=(6, 0))
+        tk.Label(grid_row, text="Grid points per axis", bg=BG_DARK,
+                 fg=TEXT_PRIMARY, font=("Helvetica", 10)).pack(side=tk.LEFT)
+        self.grid_var = tk.IntVar(value=self.app.settings.get("cube_gen_grid",
+                                                              80))
+        self._grid_btns = {}
+        for g in (40, 60, 80, 120, 200, 300):
+            b = FlatButton(grid_row, text=str(g),
+                           command=lambda v=g: self._set_grid(v),
+                           bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=8, width=4)
+            b.pack(side=tk.LEFT, padx=2)
+            self._grid_btns[g] = b
+        self.cost_lbl = tk.Label(opts, text="", bg=BG_DARK, fg=FLAG_TEXT,
+                                 font=("Helvetica", 8))
+        self.cost_lbl.pack(anchor=tk.W, pady=(4, 0))
+        self._set_grid(self.grid_var.get())
+
+        # ── Footer ──
+        self.run_btn = FlatButton(footer, text="Generate", command=self._run,
+                                  bg=BTN_PROCESS, hover=BTN_PROCESS_HOV,
+                                  font_size=10, width=10)
+        self.run_btn.pack(side=tk.RIGHT, padx=(6, 0))
+        FlatButton(footer, text="Close", command=self._close,
+                   bg=BTN_NAV, hover=BTN_NAV_HOV,
+                   font_size=10, width=8).pack(side=tk.RIGHT)
+        self.cancel_btn = FlatButton(footer, text="Stop",
+                                     command=self._request_stop,
+                                     bg=BTN_DEL, hover=BTN_DEL_HOV,
+                                     font_size=9)
+
+    # ── Options behaviour ────────────────────────────────────────────────────
+    def _set_all(self, value):
+        for var in self.vars.values():
+            var.set(value)
+
+    def _set_grid(self, g):
+        self.grid_var.set(g)
+        for value, btn in self._grid_btns.items():
+            on = value == g
+            btn.configure(bg=BTN_KEYS if on else BTN_NAV,
+                          hover=BTN_KEYS_HOV if on else BTN_NAV_HOV)
+        # Cost grows with the cube of the grid, which is easy to underestimate
+        points = g ** 3
+        rel = points / (80 ** 3)
+        self.cost_lbl.config(
+            text=f"{points:,} points per orbital  \u2014  about {rel:.1f}x "
+                 f"the work of 80\u00b3" +
+                 ("   (minutes per orbital on a large basis)" if g >= 200
+                  else ""))
+
+    # ── Running ──────────────────────────────────────────────────────────────
+    def _run(self):
+        jobs = [job for i, job in enumerate(self.jobs) if self.vars[i].get()]
+        if not jobs:
+            messagebox.showinfo("Nothing selected",
+                                "Tick at least one file.", parent=self)
+            return
+
+        needs_orca = any(j["kind"] in ("gbw", "density") for j in jobs)
+        if needs_orca and not orca_tools.orca_available():
+            if not messagebox.askyesno(
+                    "orca_2mkl missing",
+                    "Some selected files need orca_2mkl, which is not on "
+                    "PATH.\n\nThose will be skipped and reported. Continue "
+                    "with the rest?", parent=self):
+                return
+        if (self.v_homo.get() or self.v_lumo.get()) and \
+                not orca_tools.pyscf_available():
+            messagebox.showerror(
+                "pyscf missing",
+                "Orbital cubes need pyscf.\n\n    pip install pyscf",
+                parent=self)
+            return
+
+        self.app.settings["cube_gen_grid"] = self.grid_var.get()
+        save_config(self.app.bindings, self.app.settings)
+
+        self._stop = False
+        self.run_btn.configure(state=tk.DISABLED)
+        self.cancel_btn.pack(side=tk.LEFT)
+        self.prog.pack(fill=tk.X, pady=(0, 4))
+        self._log_lines = []
+
+        # Conversion is CPU-bound and can run for minutes; a thread keeps the
+        # window responsive and the Stop button live.
+        # Read every Tk variable here, on the main thread. Touching a Tk
+        # variable from the worker raises "main thread is not in main loop"
+        # and aborts the whole batch.
+        opts = dict(grid=self.grid_var.get(),
+                    want_homo=self.v_homo.get(),
+                    want_lumo=self.v_lumo.get(),
+                    want_density=self.v_dens.get())
+
+        self._queue = queue.Queue()
+        self._thread = threading.Thread(
+            target=self._worker, args=(jobs, opts), daemon=True)
+        self._thread.start()
+        self.after(80, self._drain)
+
+    def _worker(self, jobs, opts):
+        def log(msg):
+            self._queue.put(("log", msg))
+
+        def progress(frac, label):
+            self._queue.put(("progress", (frac, label)))
+
+        try:
+            written, errors = orca_tools.run_jobs(
+                jobs, log=log, progress=progress,
+                should_stop=lambda: self._stop, **opts)
+            self._queue.put(("done", (written, errors)))
+        except Exception as exc:
+            self._queue.put(("done", ([], [f"{type(exc).__name__}: {exc}"])))
+
+    def _drain(self):
+        try:
+            while True:
+                kind, payload = self._queue.get_nowait()
+                if kind == "log":
+                    self.status_lbl.config(text=payload[:90])
+                elif kind == "progress":
+                    frac, label = payload
+                    self.prog_var.set(frac * 100)
+                    self.status_lbl.config(text=label[:90])
+                elif kind == "done":
+                    self._finish(*payload)
+                    return
+        except queue.Empty:
+            pass
+        if self._thread and self._thread.is_alive():
+            self.after(80, self._drain)
+        else:
+            self.after(150, self._drain)
+
+    def _request_stop(self):
+        self._stop = True
+        self.status_lbl.config(text="Stopping after the current file…")
+
+    def _finish(self, written, errors):
+        self.run_btn.configure(state=tk.NORMAL)
+        self.cancel_btn.pack_forget()
+        self.prog_var.set(100)
+        cubes = [w for w in written if w.lower().endswith(".cube")]
+        self.status_lbl.config(
+            text=f"Done — {len(cubes)} cube(s), {len(errors)} error(s)")
+
+        msg = f"{len(cubes)} cube file(s) written."
+        if errors:
+            msg += "\n\nProblems:\n" + "\n".join(errors[:6])
+            if len(errors) > 6:
+                msg += f"\n… and {len(errors) - 6} more"
+        messagebox.showinfo("Generation complete", msg, parent=self)
+
+        if cubes and self.app.base_dir:
+            # Bring the new cubes into the list straight away
+            self.app.scan_directory(preserve_states=True)
+
+    def _close(self):
+        if self._thread and self._thread.is_alive():
+            if not messagebox.askyesno("Still running",
+                                       "Generation is still running. Stop it "
+                                       "and close?", parent=self):
+                return
+            self._stop = True
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.app.resume_shortcuts()
+        self.destroy()
+
+
+# ─── Drop choice ──────────────────────────────────────────────────────────────
+class DropChoiceDialog(tk.Toplevel):
+    """Ask whether dropped folders join the current list or replace it."""
+
+    def __init__(self, app, folders):
+        super().__init__(app.root)
+        self.app, self.folders = app, folders
+        self.result = "cancel"
         self._closed = False
         app.suspend_shortcuts()
 
-        self.title("Isosurface")
+        self.title("Add folders")
         self.configure(bg=BG_DARK)
         self.transient(app.root)
         self.resizable(False, False)
@@ -5030,132 +5758,334 @@ class CubeSettingsDialog(tk.Toplevel):
         fit_to_screen(self)
         self.grab_set()
         self.focus_force()
+        self.bind("<Escape>", lambda e: self._pick("cancel"))
+        self.protocol("WM_DELETE_WINDOW", lambda: self._pick("cancel"))
+        self.wait_window()
+
+    def _build(self):
+        hdr = tk.Frame(self, bg=BG_MID, padx=20, pady=12)
+        hdr.pack(fill=tk.X)
+        n = len(self.folders)
+        tk.Label(hdr, text=f"Add {n} folder{'s' if n != 1 else ''}?",
+                 bg=BG_MID, fg=TEXT_PRIMARY,
+                 font=("Helvetica", 14, "bold")).pack(anchor=tk.W)
+
+        body = tk.Frame(self, bg=BG_DARK, padx=20, pady=14)
+        body.pack(fill=tk.BOTH, expand=True)
+        for f in self.folders[:6]:
+            tk.Label(body, text=f"  {os.path.basename(os.path.normpath(f))}",
+                     bg=BG_DARK, fg=FLAG_TEXT,
+                     font=("Helvetica", 10, "bold")).pack(anchor=tk.W)
+            tk.Label(body, text=f"     {f}", bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 8)).pack(anchor=tk.W)
+        if len(self.folders) > 6:
+            tk.Label(body, text=f"  … and {len(self.folders) - 6} more",
+                     bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 9)).pack(anchor=tk.W)
+
+        cur = len(self.app.roots)
+        tk.Label(body,
+                 text=f"\n{cur} director{'ies are' if cur != 1 else 'y is'} "
+                      f"already open. Marks and notes on those files are kept "
+                      f"either way.",
+                 bg=BG_DARK, fg=TEXT_MUTED, justify=tk.LEFT,
+                 font=("Helvetica", 9)).pack(anchor=tk.W, pady=(8, 0))
+
+        footer = tk.Frame(self, bg=BG_MID, padx=20, pady=10)
+        footer.pack(fill=tk.X)
+        FlatButton(footer, text="Cancel", command=lambda: self._pick("cancel"),
+                   bg=BTN_NAV, hover=BTN_NAV_HOV,
+                   font_size=10, width=8).pack(side=tk.LEFT)
+        FlatButton(footer, text="Add to list",
+                   command=lambda: self._pick("add"),
+                   bg=BTN_KEEP, hover=BTN_KEEP_HOV,
+                   font_size=10).pack(side=tk.RIGHT, padx=(6, 0))
+        FlatButton(footer, text="Replace",
+                   command=lambda: self._pick("replace"),
+                   bg=BTN_INVERT, hover="#606878",
+                   font_size=10).pack(side=tk.RIGHT)
+
+    def _pick(self, what):
+        self.result = what
+        self.app._last_drop_choice = what
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.app.resume_shortcuts()
+        self.destroy()
+
+
+# ─── Cube 3D dialogs ──────────────────────────────────────────────────────────
+class CubeSettingsDialog(tk.Toplevel):
+    """
+    Full isosurface and rendering controls.
+
+    Changes preview live; Apply commits them as the defaults for future files
+    and Reset returns everything to those defaults.
+    """
+
+    def __init__(self, app, scene):
+        super().__init__(app.root)
+        self.app, self.scene = app, scene
+        self._closed = False
+        self._iso_job = None
+        self._saved = self._snapshot()
+        app.suspend_shortcuts()
+
+        self.title("Isosurface and rendering")
+        self.configure(bg=BG_DARK)
+        self.transient(app.root)
+        self.resizable(True, True)
+        self.minsize(420, 420)
+
+        self._build()
+        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.scroller.fit_content(max_height=int(sh * 0.6))
+        self.update_idletasks()
+        fit_to_screen(self)
+        self.grab_set()
+        self.focus_force()
         self.bind("<Escape>", lambda e: self._close())
         self.protocol("WM_DELETE_WINDOW", self._close)
 
+    def _snapshot(self):
+        sc = self.scene
+        return dict(iso=sc.isovalue, opacity=sc.opacity, pos=sc.pos_color,
+                    neg=sc.neg_color, bg=sc._bg, atoms=sc.atom_scheme,
+                    overrides=dict(sc.atom_overrides),
+                    shadows=sc.use_shadows, ssao=sc.use_ssao,
+                    fxaa=sc.use_fxaa, ordering=sc.use_ordering,
+                    show_atoms=sc.show_atoms, show_box=sc.show_box,
+                    smooth=sc.smooth)
+
+    # ── Layout ───────────────────────────────────────────────────────────────
     def _build(self):
         hdr = tk.Frame(self, bg=BG_MID, padx=18, pady=10)
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text="Isosurface", bg=BG_MID, fg=TEXT_PRIMARY,
-                 font=("Helvetica", 13, "bold")).pack(anchor=tk.W)
+        tk.Label(hdr, text="Isosurface and rendering", bg=BG_MID,
+                 fg=TEXT_PRIMARY, font=("Helvetica", 13, "bold")).pack(anchor=tk.W)
         lo, hi = self.scene.data_range
         tk.Label(hdr, text=f"{os.path.basename(self.scene.path)}   \u2022   "
-                           f"grid {'x'.join(str(d) for d in self.scene.dimensions)}"
-                           f"   \u2022   values {lo:.4f} to {hi:.4f}",
+                           f"values {lo:.4f} to {hi:.4f}",
                  bg=BG_MID, fg=TEXT_MUTED, font=("Helvetica", 8)).pack(anchor=tk.W)
 
-        body = tk.Frame(self, bg=BG_DARK, padx=18, pady=14)
-        body.pack(fill=tk.BOTH, expand=True)
+        footer = tk.Frame(self, bg=BG_MID, padx=18, pady=10)
+        footer.pack(side=tk.BOTTOM, fill=tk.X)
 
-        tk.Label(body, text="ISOVALUE", bg=BG_DARK, fg=TEXT_MUTED,
-                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W)
+        self.scroller = ScrollFrame(self, bg=BG_DARK)
+        self.scroller.pack(fill=tk.BOTH, expand=True, padx=(18, 6), pady=12)
+        body = self.scroller.body
+
+        def section(text):
+            tk.Label(body, text=text, bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 9, "bold")).pack(anchor=tk.W,
+                                                         pady=(10, 3))
+
+        # ── Isovalue ──
+        section("ISOVALUE")
         self.iso_lbl = tk.Label(body, text="", bg=BG_DARK, fg=FLAG_TEXT,
                                 font=("Helvetica", 11, "bold"))
         self.iso_lbl.pack(anchor=tk.W)
-
         top = max(self.scene.max_iso, 1e-6)
         self.iso = tk.DoubleVar(value=self.scene.isovalue)
-        tk.Scale(body, from_=top * 0.002, to=top * 0.9, resolution=top / 500.0,
+        tk.Scale(body, from_=top * 0.002, to=top * 0.9, resolution=top / 800.0,
                  orient=tk.HORIZONTAL, variable=self.iso, showvalue=False,
                  length=300, bg=BG_DARK, fg=TEXT_PRIMARY, troughcolor=BG_MID,
                  highlightthickness=0, bd=0, activebackground=ACCENT_BLUE,
-                 command=self._on_iso).pack(fill=tk.X, pady=(2, 10))
+                 command=self._on_iso).pack(fill=tk.X)
 
-        tk.Label(body, text="OPACITY", bg=BG_DARK, fg=TEXT_MUTED,
-                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W)
+        # ── Opacity ──
+        section("OPACITY")
         self.op = tk.DoubleVar(value=self.scene.opacity)
-        tk.Scale(body, from_=0.1, to=1.0, resolution=0.05,
+        tk.Scale(body, from_=0.05, to=1.0, resolution=0.05,
                  orient=tk.HORIZONTAL, variable=self.op, showvalue=False,
                  length=300, bg=BG_DARK, fg=TEXT_PRIMARY, troughcolor=BG_MID,
                  highlightthickness=0, bd=0, activebackground=ACCENT_BLUE,
-                 command=self._on_opacity).pack(fill=tk.X, pady=(2, 10))
+                 command=self._on_opacity).pack(fill=tk.X)
 
-        for text, var_name, setter in (
+        # ── Colours ──
+        section("COLOURS")
+        self.swatches = {}
+        for key, label in (("pos", "Positive lobe"), ("neg", "Negative lobe"),
+                           ("bg", "Background")):
+            row = tk.Frame(body, bg=BG_DARK)
+            row.pack(fill=tk.X, pady=2)
+            tk.Label(row, text=label, bg=BG_DARK, fg=TEXT_PRIMARY,
+                     font=("Helvetica", 10), width=15,
+                     anchor=tk.W).pack(side=tk.LEFT)
+            sw = tk.Frame(row, width=34, height=20, bd=0,
+                          highlightthickness=1, highlightbackground=BORDER)
+            sw.pack(side=tk.LEFT, padx=6)
+            sw.pack_propagate(False)
+            sw.bind("<Button-1>", lambda e, k=key: self._pick_colour(k))
+            self.swatches[key] = sw
+            FlatButton(row, text="Change",
+                       command=lambda k=key: self._pick_colour(k),
+                       bg=BTN_NAV, hover=BTN_NAV_HOV,
+                       font_size=8).pack(side=tk.LEFT)
+
+        row = tk.Frame(body, bg=BG_DARK)
+        row.pack(fill=tk.X, pady=(6, 0))
+        tk.Label(row, text="Atoms", bg=BG_DARK, fg=TEXT_PRIMARY,
+                 font=("Helvetica", 10), width=15, anchor=tk.W).pack(side=tk.LEFT)
+        self.atom_var = tk.StringVar(value=self.scene.atom_scheme)
+        for scheme in cube_viewer.CubeScene.ATOM_SCHEMES:
+            tk.Radiobutton(row, text=scheme.title(), value=scheme,
+                           variable=self.atom_var, command=self._on_atoms,
+                           bg=BG_DARK, fg=TEXT_PRIMARY, selectcolor=BG_MID,
+                           activebackground=BG_DARK,
+                           activeforeground=TEXT_PRIMARY,
+                           highlightthickness=0, bd=0,
+                           font=("Helvetica", 9)).pack(side=tk.LEFT)
+
+        # Per-element colours — only the elements actually in this file, so
+        # the list stays short and relevant.
+        el_head = tk.Frame(body, bg=BG_DARK)
+        el_head.pack(fill=tk.X, pady=(8, 2))
+        tk.Label(el_head, text="Per element", bg=BG_DARK, fg=TEXT_PRIMARY,
+                 font=("Helvetica", 10), width=15,
+                 anchor=tk.W).pack(side=tk.LEFT)
+        FlatButton(el_head, text="Reset all", command=self._reset_elements,
+                   bg=BTN_INVERT, hover="#606878",
+                   font_size=8).pack(side=tk.LEFT)
+
+        el_wrap = tk.Frame(body, bg=BG_DARK)
+        el_wrap.pack(fill=tk.X, padx=(10, 0))
+        self.el_swatches = {}
+        for z in self.scene.elements_present():
+            cell = tk.Frame(el_wrap, bg=BG_DARK)
+            cell.pack(side=tk.LEFT, padx=(0, 10), pady=2)
+            tk.Label(cell, text=self.scene.element_symbol(z), bg=BG_DARK,
+                     fg=TEXT_PRIMARY,
+                     font=("Helvetica", 9, "bold")).pack()
+            sw = tk.Frame(cell, width=26, height=18, bd=0,
+                          highlightthickness=1, highlightbackground=BORDER,
+                          cursor="hand2")
+            sw.pack()
+            sw.pack_propagate(False)
+            sw.bind("<Button-1>", lambda e, zz=z: self._pick_element(zz))
+            self.el_swatches[z] = sw
+
+        # ── Effects ──
+        section("RENDERING")
+        self.fx = {}
+        for key, label, note in (
+                ("ordering", "Correct transparency ordering", "depth peeling"),
+                ("fxaa", "Antialiasing", "FXAA, smooths edges"),
+                ("ssao", "Ambient occlusion", "contact shadowing, slower"),
+                ("shadows", "Shadows", "forces opacity to 100%")):
+            var = tk.BooleanVar(value=getattr(self.scene, "use_" + key))
+            self.fx[key] = var
+            r = tk.Frame(body, bg=BG_DARK)
+            r.pack(fill=tk.X, anchor=tk.W)
+            tk.Checkbutton(r, text=label, variable=var,
+                           command=self._on_effects,
+                           bg=BG_DARK, fg=TEXT_PRIMARY, selectcolor=BG_MID,
+                           activebackground=BG_DARK,
+                           activeforeground=TEXT_PRIMARY,
+                           highlightthickness=0, bd=0,
+                           font=("Helvetica", 10)).pack(side=tk.LEFT)
+            tk.Label(r, text=note, bg=BG_DARK, fg=TEXT_MUTED,
+                     font=("Helvetica", 8)).pack(side=tk.LEFT, padx=(6, 0))
+
+        self.fx_warn = tk.Label(body, text="", bg=BG_DARK, fg=FLAG_TEXT,
+                                font=("Helvetica", 8), justify=tk.LEFT,
+                                wraplength=340)
+        self.fx_warn.pack(anchor=tk.W, pady=(4, 0))
+
+        # ── Geometry ──
+        section("GEOMETRY")
+        for text, attr, setter in (
                 ("Show atoms and bonds", "show_atoms", self.scene.set_show_atoms),
                 ("Show grid box", "show_box", self.scene.set_show_box),
                 ("Smooth surfaces", "smooth", self.scene.set_smooth)):
-            var = tk.BooleanVar(value=getattr(self.scene, var_name))
-            setattr(self, "v_" + var_name, var)
-            tk.Checkbutton(
-                body, text=text, variable=var,
-                command=lambda v=var, f=setter: (f(v.get()), self._refresh()),
-                bg=BG_DARK, fg=TEXT_PRIMARY, selectcolor=BG_MID,
-                activebackground=BG_DARK, activeforeground=TEXT_PRIMARY,
-                highlightthickness=0, bd=0, font=("Helvetica", 10),
-            ).pack(anchor=tk.W)
+            var = tk.BooleanVar(value=getattr(self.scene, attr))
+            setattr(self, "v_" + attr, var)
+            tk.Checkbutton(body, text=text, variable=var,
+                           command=lambda v=var, f=setter: (f(v.get()),
+                                                            self._refresh()),
+                           bg=BG_DARK, fg=TEXT_PRIMARY, selectcolor=BG_MID,
+                           activebackground=BG_DARK,
+                           activeforeground=TEXT_PRIMARY,
+                           highlightthickness=0, bd=0,
+                           font=("Helvetica", 10)).pack(anchor=tk.W)
 
-        tk.Frame(body, bg=BORDER, height=1).pack(fill=tk.X, pady=10)
-        tk.Label(body, text="RENDERING", bg=BG_DARK, fg=TEXT_MUTED,
-                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W, pady=(0, 4))
+        self.scroller.bind_wheel_recursive()
 
-        for text, var_name, setter, hint in (
-                ("Ambient occlusion (SSAO)", "ssao", self.scene.set_ssao,
-                 "contact shading, ~2x slower"),
-                ("Shadows", "shadows", self.scene.set_shadows,
-                 "directional key light"),
-                ("Order-correct transparency", "depth_peel",
-                 self.scene.set_depth_peel, "fixes overlapping lobes"),
-                ("Anti-aliasing (FXAA)", "fxaa", self.scene.set_fxaa,
-                 "smooths edges, cheap")):
-            row = tk.Frame(body, bg=BG_DARK)
-            row.pack(fill=tk.X, anchor=tk.W)
-            var = tk.BooleanVar(value=getattr(self.scene, var_name))
-            setattr(self, "v_" + var_name, var)
-            tk.Checkbutton(
-                row, text=text, variable=var,
-                command=lambda v=var, f=setter, n=var_name: self._set_quality(n, f, v),
-                bg=BG_DARK, fg=TEXT_PRIMARY, selectcolor=BG_MID,
-                activebackground=BG_DARK, activeforeground=TEXT_PRIMARY,
-                highlightthickness=0, bd=0, font=("Helvetica", 10),
-            ).pack(side=tk.LEFT)
-            tk.Label(row, text=hint, bg=BG_DARK, fg=TEXT_MUTED,
-                     font=("Helvetica", 8)).pack(side=tk.LEFT, padx=(6, 0))
-
-        tk.Frame(body, bg=BORDER, height=1).pack(fill=tk.X, pady=10)
-        tk.Label(body, text="RENDER QUALITY", bg=BG_DARK, fg=TEXT_MUTED,
-                 font=("Helvetica", 9, "bold")).pack(anchor=tk.W, pady=(0, 4))
-
-        self.q_btns = {}
-        qrow = tk.Frame(body, bg=BG_DARK)
-        qrow.pack(fill=tk.X)
-        for key, label, _note in cube_viewer.QUALITY_LEVELS:
-            b = FlatButton(qrow, text=label,
-                           command=lambda k=key: self._set_quality(k),
-                           bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=9)
-            b.pack(side=tk.LEFT, padx=3)
-            self.q_btns[key] = b
-        self.q_note = tk.Label(body, text="", bg=BG_DARK, fg=TEXT_MUTED,
-                               font=("Helvetica", 8))
-        self.q_note.pack(anchor=tk.W, pady=(4, 0))
-        self._sync_quality()
-
-        footer = tk.Frame(self, bg=BG_MID, padx=18, pady=10)
-        footer.pack(fill=tk.X)
-        FlatButton(footer, text="Reset view", command=self._reset,
+        # ── Footer ──
+        FlatButton(footer, text="Reset", command=self._reset_all,
                    bg=BTN_INVERT, hover="#606878", font_size=9).pack(side=tk.LEFT)
+        tk.Label(footer, text="reset = back to saved defaults", bg=BG_MID,
+                 fg=TEXT_MUTED, font=("Helvetica", 7)).pack(side=tk.LEFT,
+                                                            padx=(6, 0))
+        FlatButton(footer, text="Recentre", command=self._reset_view,
+                   bg=BTN_NAV, hover=BTN_NAV_HOV,
+                   font_size=9).pack(side=tk.LEFT, padx=6)
         FlatButton(footer, text="Close", command=self._close,
-                   bg=BTN_NAV, hover=BTN_NAV_HOV, font_size=10,
-                   width=8).pack(side=tk.RIGHT)
-        self._update_iso_label()
+                   bg=BTN_NAV, hover=BTN_NAV_HOV,
+                   font_size=10, width=8).pack(side=tk.RIGHT)
+        FlatButton(footer, text="Apply as default", command=self._apply,
+                   bg=BTN_KEEP, hover=BTN_KEEP_HOV,
+                   font_size=10).pack(side=tk.RIGHT, padx=(6, 0))
 
-    def _set_quality(self, name, setter, var):
-        setter(var.get())
-        # A driver that cannot manage the pass chain turns the toggle back
-        # off, so mirror whatever the scene actually settled on.
-        var.set(getattr(self.scene, name))
-        self.app.settings[f"cube_{name}"] = var.get()
-        save_config(self.app.bindings, self.app.settings)
-        self._refresh()
+        self._update_iso_label()
+        self._update_swatches()
+        self._update_element_swatches()
+        self._update_warning()
+
+    # ── Helpers ──────────────────────────────────────────────────────────────
+    @staticmethod
+    def _to_hex(rgb):
+        return "#%02x%02x%02x" % tuple(max(0, min(255, int(c * 255)))
+                                       for c in rgb)
+
+    def _update_swatches(self):
+        for key, colour in (("pos", self.scene.pos_color),
+                            ("neg", self.scene.neg_color),
+                            ("bg", self.scene._bg)):
+            self.swatches[key].configure(bg=self._to_hex(colour))
 
     def _update_iso_label(self):
-        self.iso_lbl.config(text=f"\u00b1 {self.iso.get():.5f}")
+        v = self.iso.get()
+        self.iso_lbl.config(text=f"\u00b1 {v:.5f}" if v >= 0.001
+                            else f"\u00b1 {v:.3e}")
 
+    def _update_warning(self):
+        if self.fx["shadows"].get():
+            self.fx_warn.config(
+                text="Shadows cannot render translucent surfaces, so opacity "
+                     "is held at 100% while they are on.")
+        else:
+            self.fx_warn.config(text="")
+
+    def _pick_colour(self, key):
+        current = {"pos": self.scene.pos_color, "neg": self.scene.neg_color,
+                   "bg": self.scene._bg}[key]
+        rgb, _hexval = colorchooser.askcolor(
+            color=self._to_hex(current), parent=self,
+            title={"pos": "Positive lobe", "neg": "Negative lobe",
+                   "bg": "Background"}[key])
+        if rgb is None:
+            return
+        norm = tuple(c / 255.0 for c in rgb)
+        if key == "bg":
+            self.scene.set_background(norm)
+        elif key == "pos":
+            self.scene.set_colors(pos=norm)
+        else:
+            self.scene.set_colors(neg=norm)
+        self._update_swatches()
+        self._refresh()
+
+    # ── Live updates ─────────────────────────────────────────────────────────
     def _on_iso(self, _v=None):
         self._update_iso_label()
-        if getattr(self, "_iso_job", None):
+        if self._iso_job:
             self.after_cancel(self._iso_job)
-        # Rebuilding marching cubes on every pixel of slider travel would
-        # stutter; one rebuild once the slider settles is enough.
         self._iso_job = self.after(120, self._apply_iso)
 
     def _apply_iso(self):
@@ -5165,30 +6095,50 @@ class CubeSettingsDialog(tk.Toplevel):
         self._refresh()
 
     def _on_opacity(self, _v=None):
+        if self.fx["shadows"].get():
+            self.op.set(1.0)
+            return
         self.scene.set_opacity(self.op.get())
         self._refresh()
 
-    def _set_quality(self, key):
-        self.scene.set_quality(key)
-        self.app.settings["cube_quality"] = key
-        save_config(self.app.bindings, self.app.settings)
-        self._sync_quality()
+    def _on_atoms(self):
+        self.scene.set_atom_scheme(self.atom_var.get())
+        self._update_element_swatches()
         self._refresh()
 
-    def _sync_quality(self):
-        for key, b in self.q_btns.items():
-            on = key == self.scene.quality
-            b.configure(bg=BTN_KEYS if on else BTN_NAV,
-                        hover=BTN_KEYS_HOV if on else BTN_NAV_HOV)
-        self.q_note.config(
-            text=cube_viewer.QUALITY_NOTE.get(self.scene.quality, ""))
+    def _element_color(self, z):
+        if z in self.scene.atom_overrides:
+            return self.scene.atom_overrides[z]
+        flat = self.scene.SCHEME_COLORS.get(self.scene.atom_scheme)
+        return flat if flat else self.scene.element_default_color(z)
 
-    def _reset(self):
-        self.scene.reset_camera()
+    def _update_element_swatches(self):
+        for z, sw in getattr(self, "el_swatches", {}).items():
+            sw.configure(bg=self._to_hex(self._element_color(z)))
+
+    def _pick_element(self, z):
+        rgb, _hexval = colorchooser.askcolor(
+            color=self._to_hex(self._element_color(z)), parent=self,
+            title=f"Colour for {self.scene.element_symbol(z)}")
+        if rgb is None:
+            return
+        self.scene.set_atom_color(z, tuple(c / 255.0 for c in rgb))
+        self._update_element_swatches()
+        self._refresh()
+
+    def _reset_elements(self):
+        self.scene.clear_atom_colors()
+        self._update_element_swatches()
+        self._refresh()
+
+    def _on_effects(self):
+        self.scene.set_effects(**{k: v.get() for k, v in self.fx.items()})
+        if self.fx["shadows"].get():
+            self.op.set(self.scene.opacity)
+        self._update_warning()
         self._refresh()
 
     def sync_from_scene(self):
-        """Reflect an isovalue changed elsewhere (toolbar buttons, shortcuts)."""
         try:
             self.iso.set(self.scene.isovalue)
             self._update_iso_label()
@@ -5198,6 +6148,69 @@ class CubeSettingsDialog(tk.Toplevel):
     def _refresh(self):
         self.app._show_image(keep_zoom=True, recenter=True)
         self.app._refresh_iso_readout()
+
+    # ── Footer actions ───────────────────────────────────────────────────────
+    def _reset_view(self):
+        self.scene.reset_camera()
+        self._refresh()
+
+    def _reset_all(self):
+        """
+        Back to the saved defaults.
+
+        That means the state the dialog opened with, or whatever was last
+        committed with Apply — so Apply then Reset is a no-op rather than a
+        surprise.
+        """
+        d = self._saved
+        sc = self.scene
+        sc.set_colors(pos=d["pos"], neg=d["neg"])
+        sc.set_background(d["bg"])
+        sc.set_atom_scheme(d["atoms"])
+        sc.atom_overrides = dict(d.get("overrides", {}))
+        sc._apply_atom_colors()
+        sc.set_effects(shadows=d["shadows"], ssao=d["ssao"],
+                       fxaa=d["fxaa"], ordering=d["ordering"])
+        sc.set_isovalue(d["iso"])
+        sc.set_opacity(d["opacity"])
+        sc.set_show_atoms(d["show_atoms"])
+        sc.set_show_box(d["show_box"])
+        sc.set_smooth(d["smooth"])
+
+        self.iso.set(d["iso"])
+        self.op.set(d["opacity"])
+        self.atom_var.set(d["atoms"])
+        for k, var in self.fx.items():
+            var.set(d[k])
+        for attr in ("show_atoms", "show_box", "smooth"):
+            getattr(self, "v_" + attr).set(d[attr])
+        self._update_iso_label()
+        self._update_swatches()
+        self._update_element_swatches()
+        self._update_warning()
+        self._refresh()
+
+    def _apply(self):
+        """Persist the current look so the next cube opens the same way."""
+        sc = self.scene
+        self.app.settings.update({
+            "cube_pos_color": list(sc.pos_color),
+            "cube_neg_color": list(sc.neg_color),
+            "cube_bg_color": list(sc._bg),
+            "cube_atom_scheme": sc.atom_scheme,
+            "cube_atom_overrides": {str(k): list(v)
+                                    for k, v in sc.atom_overrides.items()},
+            "cube_opacity": sc.opacity,
+            "cube_shadows": sc.use_shadows,
+            "cube_ssao": sc.use_ssao,
+            "cube_fxaa": sc.use_fxaa,
+            "cube_ordering": sc.use_ordering,
+        })
+        save_config(self.app.bindings, self.app.settings)
+        self._saved = self._snapshot()
+        messagebox.showinfo("Applied",
+                            "These settings will be used for cube files "
+                            "from now on.", parent=self)
 
     def _close(self):
         if self._closed:
@@ -5689,7 +6702,9 @@ class HelpDialog(tk.Toplevel):
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 def main():
-    root = tk.Tk()
+    # TkinterDnD.Tk is a drop-in replacement for tk.Tk that loads the tkdnd
+    # extension; without the package we fall back to a plain window.
+    root = TkinterDnD.Tk() if DND_SUPPORT else tk.Tk()
 
     # High-DPI awareness on Windows
     try:
@@ -5759,6 +6774,7 @@ def main():
     probe_glyphs(root)
 
     app = VisManager(root)
+    app.setup_dnd()
     root.protocol("WM_DELETE_WINDOW", app.on_close)
 
     try:

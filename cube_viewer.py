@@ -270,6 +270,13 @@ class CubeScene:
         self.show_box = False
         self.smooth = True
         self.quality = "quality"
+        self.use_shadows = False
+        self.use_ssao = False
+        self.use_fxaa = True
+        self.use_ordering = True
+        self.atom_scheme = "element"
+        self.atom_overrides = {}        # {atomic_number: (r, g, b)}
+        self._atom_lut = None
         self.ssao = False          # screen-space ambient occlusion
         self.shadows = False       # shadow mapping
         self.depth_peel = True     # order-correct transparency
@@ -378,6 +385,7 @@ class CubeScene:
             p.SetSpecularPower(30)
             self.renderer.AddActor(actor)
             self._surf_actors.append(actor)
+        self._set_shading(0.30 if self.use_shadows else 0.12)
 
     def _build_molecule(self):
         if not self.molecule or self.n_atoms == 0:
@@ -542,6 +550,185 @@ class CubeScene:
             self.ssao = self.shadows = False
 
     # ── Rendering quality ────────────────────────────────────────────────────
+    def set_effects(self, shadows=None, ssao=None, fxaa=None, ordering=None):
+        """
+        Toggle rendering effects individually.
+
+        Shadows are offered because they were asked for, but they come with a
+        real caveat: vtkShadowMapPass does not render translucent geometry, so
+        an isosurface below full opacity disappears under it. The UI warns and
+        the opacity is forced to 1.0 while shadows are on.
+        """
+        ren, rw = self.renderer, self.render_window
+        if ordering is not None:
+            self.use_ordering = bool(ordering)
+        if ssao is not None:
+            self.use_ssao = bool(ssao)
+        if fxaa is not None:
+            self.use_fxaa = bool(fxaa)
+        if shadows is not None:
+            self.use_shadows = bool(shadows)
+
+        try:
+            rw.SetAlphaBitPlanes(1 if self.use_ordering else 0)
+            ren.SetUseDepthPeeling(self.use_ordering)
+            if self.use_ordering:
+                ren.SetMaximumNumberOfPeels(8)
+                ren.SetOcclusionRatio(0.05)
+        except Exception:
+            pass
+        try:
+            ren.SetUseFXAA(self.use_fxaa)
+        except Exception:
+            pass
+        try:
+            ren.SetUseSSAO(self.use_ssao)
+            if self.use_ssao:
+                span = self._scene_span()
+                ren.SetSSAORadius(span * 0.12)
+                ren.SetSSAOBias(span * 0.001)
+                ren.SetSSAOKernelSize(32)
+                ren.SetSSAOBlur(True)
+        except Exception:
+            pass
+
+        try:
+            if self.use_shadows:
+                self._setup_lights(for_shadows=True)
+                baker = vtk.vtkShadowMapBakerPass()
+                try:
+                    # A low-resolution map is what produced the hard band
+                    # across smooth lobes; VTK exposes no depth bias, so
+                    # resolution is the only lever.
+                    baker.SetResolution(2048)
+                except Exception:
+                    pass
+                smp = vtk.vtkShadowMapPass()
+                smp.SetShadowMapBakerPass(baker)
+                seq = vtk.vtkSequencePass()
+                col = vtk.vtkRenderPassCollection()
+                col.AddItem(baker)
+                col.AddItem(smp)
+                seq.SetPasses(col)
+                cam = vtk.vtkCameraPass()
+                cam.SetDelegatePass(seq)
+                ren.SetPass(cam)
+                self._pass = cam
+                # Unlit regions render pure black without an ambient term,
+                # which looks like a rendering fault rather than a shadow.
+                self._set_shading(ambient=0.30)
+                self.set_opacity(1.0)      # translucency vanishes otherwise
+            else:
+                if self._pass is not None:
+                    try:
+                        self._pass.ReleaseGraphicsResources(rw)
+                    except Exception:
+                        pass
+                ren.SetPass(None)
+                self._pass = None
+                self._setup_lights(for_shadows=False)
+                self._set_shading(ambient=0.12)
+        except Exception:
+            pass
+
+    def _set_shading(self, ambient):
+        for actor in self._surf_actors + ([self._mol_actor]
+                                          if self._mol_actor else []):
+            pr = actor.GetProperty()
+            pr.SetAmbient(ambient)
+            pr.SetDiffuse(1.0 - ambient * 0.4)
+
+    def set_colors(self, pos=None, neg=None, atoms_scheme=None):
+        """Recolour the isosurfaces, and optionally the atoms."""
+        if pos is not None:
+            self.pos_color = tuple(pos)
+        if neg is not None:
+            self.neg_color = tuple(neg)
+        for actor, colour in zip(self._surf_actors, (self.pos_color,
+                                                     self.neg_color)):
+            actor.GetProperty().SetColor(*colour)
+        if atoms_scheme is not None:
+            self.set_atom_scheme(atoms_scheme)
+
+    ATOM_SCHEMES = ("element", "mono", "warm", "cool")
+    SCHEME_COLORS = {"mono": (0.78, 0.78, 0.82),
+                     "warm": (0.85, 0.62, 0.42),
+                     "cool": (0.55, 0.72, 0.88)}
+
+    def elements_present(self):
+        """Atomic numbers in this file, in ascending order."""
+        return sorted({z for z, _x, _y, _z in self.atoms})
+
+    @staticmethod
+    def element_symbol(z):
+        try:
+            return vtk.vtkPeriodicTable().GetSymbol(int(z))
+        except Exception:
+            return str(z)
+
+    @staticmethod
+    def element_default_color(z):
+        try:
+            return tuple(vtk.vtkPeriodicTable().GetDefaultRGBTuple(int(z)))
+        except Exception:
+            return (0.6, 0.6, 0.6)
+
+    def set_atom_color(self, z, rgb):
+        """Override one element's colour. rgb=None restores the default."""
+        if rgb is None:
+            self.atom_overrides.pop(int(z), None)
+        else:
+            self.atom_overrides[int(z)] = tuple(rgb)
+        self._apply_atom_colors()
+
+    def clear_atom_colors(self):
+        self.atom_overrides = {}
+        self._apply_atom_colors()
+
+    def set_atom_scheme(self, scheme):
+        self.atom_scheme = scheme if scheme in self.ATOM_SCHEMES else "element"
+        self._apply_atom_colors()
+
+    def _apply_atom_colors(self):
+        """
+        Colour atoms through a lookup table indexed by atomic number.
+
+        The earlier approach set AtomColorMode(0) plus SetAtomColor, which had
+        no visible effect — every scheme rendered identically. Supplying a LUT
+        and leaving the mapper in per-atom mode does work, and it is also what
+        makes per-element overrides possible at all.
+        """
+        if self._mol_actor is None:
+            return
+        mapper = self._mol_actor.GetMapper()
+        flat = self.SCHEME_COLORS.get(self.atom_scheme)
+
+        lut = vtk.vtkLookupTable()
+        lut.SetNumberOfTableValues(119)
+        lut.SetRange(0, 118)
+        for z in range(119):
+            if z in self.atom_overrides:
+                rgb = self.atom_overrides[z]
+            elif flat is not None:
+                rgb = flat
+            else:
+                rgb = self.element_default_color(z)
+            lut.SetTableValue(z, rgb[0], rgb[1], rgb[2], 1.0)
+        lut.Build()
+
+        try:
+            mapper.SetAtomColorMode(1)        # per-atom, read from the LUT
+            mapper.SetLookupTable(lut)
+            mapper.SetBondColorMode(1)
+        except Exception:
+            pass
+        self._mol_actor.GetProperty().SetColor(1.0, 1.0, 1.0)
+        self._atom_lut = lut
+
+    def set_background(self, rgb):
+        self._bg = tuple(rgb)
+        self.renderer.SetBackground(*self._bg)
+
     def set_quality(self, level):
         """Apply a rendering preset. Safe to call repeatedly."""
         if level not in QUALITY_LABEL:
@@ -551,9 +738,11 @@ class CubeScene:
 
         self._setup_lights()
 
-        want_peel = level in ("quality", "best")
-        want_ssao = level == "best"
-        want_fxaa = level in ("quality", "best")
+        self.use_ordering = level in ("quality", "best")
+        self.use_ssao = level == "best"
+        self.use_fxaa = level in ("quality", "best")
+        want_peel, want_ssao, want_fxaa = (self.use_ordering, self.use_ssao,
+                                           self.use_fxaa)
 
         try:
             # Depth peeling resolves the draw order of overlapping translucent
@@ -590,7 +779,7 @@ class CubeScene:
         b = self.grid.GetBounds()
         return max(b[1] - b[0], b[3] - b[2], b[5] - b[4]) or 1.0
 
-    def _setup_lights(self):
+    def _setup_lights(self, for_shadows=False):
         """
         Key / fill / rim rig.
 
@@ -604,9 +793,24 @@ class CubeScene:
         b = self.grid.GetBounds()
         centre = ((b[0] + b[1]) / 2, (b[2] + b[3]) / 2, (b[4] + b[5]) / 2)
         span = self._scene_span()
-        rig = (((1.0, 1.0, 1.0), 1.00),      # key
-               ((-1.0, 0.4, 0.6), 0.45),     # fill
-               ((0.0, -1.0, -0.8), 0.30))    # rim
+        if for_shadows:
+            # Shadow casting needs a positional light with a cone; a purely
+            # directional key produces no usable shadow map here.
+            key = vtk.vtkLight()
+            key.SetLightTypeToSceneLight()
+            key.SetPositional(True)
+            key.SetConeAngle(45)
+            key.SetPosition(centre[0] + span * 1.4, centre[1] + span * 1.5,
+                            centre[2] + span * 1.7)
+            key.SetFocalPoint(*centre)
+            key.SetIntensity(1.0)
+            ren.AddLight(key)
+            rig = (((-1.0, 0.3, 0.6), 0.35), ((0.0, -1.0, -0.6), 0.25))
+        else:
+            rig = (((1.0, 1.0, 1.0), 1.00),      # key
+                   ((-1.0, 0.4, 0.6), 0.45),     # fill
+                   ((0.0, -1.0, -0.8), 0.30))    # rim
+
         for direction, intensity in rig:
             light = vtk.vtkLight()
             light.SetLightTypeToSceneLight()

@@ -59,6 +59,14 @@ only at build time.
 
 ---
 
+## Opening files
+
+**Drag and drop** folders (or files, which open their containing folder) onto
+the window. If something is already open you are asked whether to add to the
+list or replace it. With several directories open the sidebar groups folders
+under a header per directory, and clicking a header collapses that group so a
+large list stays readable.
+
 ## Using it
 
 1. **Open Directory** — scans every subfolder for supported files
@@ -129,6 +137,30 @@ folder and the annotations travel with it.
 
 ---
 
+## Generating cube files (optional)
+
+**Make Cubes** in the toolbar (`Ctrl+G`) converts quantum-chemistry output in
+the open directories into the `.cube` files this app displays:
+
+```
+.gbw  --orca_2mkl-->  .molden.input  --pyscf-->  HOMO/LUMO cubes
+.gbw  --orca_plot-->  spin / electron density cube
+```
+
+Pressing it scans and shows exactly what it found — every `.gbw`,
+`.molden` / `.molden.input` and `.scfp` / `.scfr` / `.densities` file, what
+each can produce, and which cubes already sit beside it. It also reports which
+parts of the toolchain are present, so a missing tool is visible before you
+start rather than halfway through a batch.
+
+Requirements: `pip install pyscf` for orbital cubes; `orca_2mkl` and
+`orca_plot` on PATH (they ship with ORCA) for the `.gbw` and density stages.
+
+Restricted vs unrestricted is read from the molden file itself, so open-shell
+systems produce ALPHA/BETA sets automatically without being listed anywhere.
+Grid size is selectable — note the cost scales with its cube, so 300³ is about
+50x the work of 80³.
+
 ## 3D cube files (optional)
 
 Install VTK to open Gaussian `.cube` files directly:
@@ -138,13 +170,57 @@ pip install vtk
 ```
 
 Cube files then render as interactive isosurfaces — drag to orbit, scroll to
-zoom. `I` opens isosurface settings (isovalue, opacity, atoms/bonds, grid box,
+zoom.
+
+**Isosurface and rendering** (`I`) covers isovalue, opacity, lobe and
+background colours, atom colouring, and individual toggles for transparency
+ordering, antialiasing, ambient occlusion and shadows — with **Apply as
+default** to reuse the look on later files and **Reset** to return to it.
+
+Atom colours can be set **per element** — only the elements present in the
+open file are listed — on top of the whole-molecule schemes.
+
+Shadows work with a positional key light, a 2048 shadow map and an ambient
+term; VTK exposes no depth bias, so those are the levers. One caveat the
+dialog states: the shadow pass cannot draw translucent geometry, so opacity is
+held at 100% while shadows are on.
+
+**Render quality** has three presets in the isosurface dialog:
+
+| Preset | What it adds | Cost (software GL) |
+|---|---|---|
+| Fast | three-point lighting | ~106 ms/frame |
+| Quality *(default)* | + depth peeling, FXAA | ~104 ms/frame |
+| Best | + screen-space ambient occlusion | ~142 ms/frame |
+
+Depth peeling matters most: without it two overlapping translucent lobes blend
+in arbitrary order, which visibly shifts as you rotate. Shadow maps are
+deliberately not offered — they drop translucent geometry entirely and band
+opaque surfaces with self-shadowing artifacts.
+
+**Isovalue** is front and centre: the left toolbar shows the current value with
+`−` / `+` steppers, and `,` / `.` adjust it from the keyboard. Steps are
+geometric rather than fixed, because cube values span orders of magnitude
+between a diffuse tail and a nuclear cusp. `I` opens the full settings (isovalue, opacity, atoms/bonds, grid box,
 smoothing); `Ctrl+3` opens **Export 3D View**:
 
 | Output | Resolution |
 |---|---|
 | PNG, TIFF, JPEG | 1x – 8x multiplier on the view size |
 | SVG, PDF, EPS | true vector, resolution-independent |
+
+**Rendering quality** toggles live in the same dialog:
+
+| Toggle | Effect | Cost |
+|---|---|---|
+| Ambient occlusion (SSAO) | contact shading in crevices | ~1x here, GPU-dependent |
+| Shadows | cast shadows from a key light | ~1.2x |
+| Order-correct transparency | fixes overlapping lobes | small |
+| Anti-aliasing (FXAA) | smooths edges | negligible |
+
+All four need OpenGL 3.2+; on a driver that can't manage the pass chain they
+turn themselves back off rather than losing the picture. Settings persist and
+carry across files.
 
 There is a white-background option for publication figures and transparent
 background for PNG/TIFF. Keep/Delete, flags and notes work on cube files just

@@ -44,7 +44,7 @@ INCLUDE_PDFIUM = True     # set False for a pure-Python, pypdf-only build
 # accidental 175 MB build. The exclusion below is what prevents that.
 #
 # Set True (and `pip install vtk`) to ship a build that opens .cube files.
-INCLUDE_CUBE3D = True
+INCLUDE_CUBE3D = False
 
 # ── Cross-compiling is not possible ───────────────────────────────────────
 # PyInstaller bundles the interpreter and libraries of the HOST platform:
